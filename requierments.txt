@@ -1,0 +1,9 @@
+langchain
+langchain_community
+tqdm
+pandas
+transformers
+accelerate
+pypdf
+faiss-cpu
+sentence_transformers
