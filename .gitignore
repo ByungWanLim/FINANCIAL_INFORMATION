@@ -5,6 +5,12 @@
 /train_source/
 sample_submission_source/
 /env.yaml/
+fewshot_faiss_db/
+fewshot_faiss_db_metadata.pkl
+test_faiss_db/
+test_faiss_db_metadata.pkl
+train_faiss_db/
+train_faiss_db_metadata.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
