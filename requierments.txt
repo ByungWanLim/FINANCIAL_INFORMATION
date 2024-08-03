@@ -1,5 +1,6 @@
 langchain
 langchain_community
+langchain_huggingface
 tqdm
 pandas
 transformers
