@@ -147,6 +147,7 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         # print(fewshot_str)
         
         full_template = """
+        You are an assistant for question-answering tasks.  
 너는 사람들에게 방대한 재정 데이터를 일반 국민과 전문가들이 이해할 수 있는 방식으로 전달하고 싶어한다.
 너는 이를 위한 몇가지 예시 참고해서  재정 보고서, 예산 설명자료, 기획재정부 보도자료 등 다양한 재정 관련 텍스트 데이터를 활용해 주어진 질문에 대해 정확도가 높은 응답을 제시해줘.
 
@@ -156,14 +157,16 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
 {fewshot_str}
 """+"""
 이제 진짜로 한번 해봐. 
-Context와 위의 예시를 참고해서, 아래 질문에 대한 답변만 예시처럼 한 문장으로 작성해줘.
-여기 지켜야할 몇가지 규칙이 있어.
-반드시 context를 참고하여 답변을 작성해야해.
-답변은 질문에 대한 답변만 한 문장으로 작성해야해.
-    다른 "답변: ", "Answer: " 등의 문구는 없어야해. 
-    " 이 답변은 질문에 대한 답변만 한 문장으로 작성되었습니다. " 같은 문구도 없어야해.
-    문맥정보도 작성하지마, 문맥정보를 참고하되 질문에 대한 답변만 작성해.
-답변 기본예시) 000은 000 입니다.
+You will be my Q&A helper.
+Refer to the Context and the example above and output the answer to the question in one sentence.
+At this time, there are rules for writing answers. These rules must be followed.
+Rule 1: Write the answer by fully considering the Context information.
+Rule 2: The answer does not include the "Context" or "Source".
+Rule 3: The answer must be written in one sentence as concisely as possible.
+Rule 4: In the answer, phrases such as "Answer:" and "Answer:" are excluded.
+Rule 5: In addition to the phrases mentioned in Rule 3, phrases unrelated to the answer are excluded.
+Rule 6: The answer format follows A is B.
+Rule 7: The answer must be in Korean.
 
 Context:{context}
 Question: {input}
