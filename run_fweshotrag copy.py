@@ -112,11 +112,12 @@ def setup_llm_pipeline(model_id):
         tokenizer=tokenizer,
         task="text-generation",
         #model_kwargs={"torch_dtype": torch.bfloat16},
-        do_sample = False,
+        do_sample = True,
         temperature=0.1,
         top_p=0.9,
         return_full_text=False,
         # eos_token_id=terminators,
+        eos_token_id=tokenizer.eos_token_id,
         max_new_tokens=128,
         pad_token_id=tokenizer.eos_token_id  # 패딩 토큰을 EOS 토큰 ID로 설정
     )
