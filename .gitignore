@@ -4,6 +4,7 @@
 /test_source/
 /train_source/
 sample_submission_source/
+/env.yaml/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
