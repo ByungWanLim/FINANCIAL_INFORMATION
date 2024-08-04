@@ -35,6 +35,7 @@ from faiss_module import load_and_vectorize,load_chunks_make_docdb
 from model import setup_llm_pipeline
 from save import save
 from seed import seed_everything
+import unicodedata
 
 seed_everything(7777)
 
@@ -73,8 +74,17 @@ def make_fewshot_string(fewshot_prompt, train_retriever, buff):
         fewshot_list[i] = num + "context: " + retrieved_docs[0].page_content + entry + '\n\n'
     return str(fewshot_list)
 
+def normalize_string(s):
+    """유니코드 정규화"""
+    return unicodedata.normalize('NFC', s)
+
 def format_docs(docs):
-    return "\n\n".join(doc.page_content for doc in docs)
+    """검색된 문서들을 하나의 문자열로 포맷팅"""
+    context = ""
+    for doc in docs:
+        context += doc.page_content
+        context += '\n\n'
+    return context
 
 def extract_answer(response):
     # AI: 로 시작하는 줄을 찾아 그 이후의 텍스트만 추출
@@ -109,26 +119,24 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         # print(fewshot_str)
         
         full_template = """
-You are a Greatest Financial Information Q&A helper.
-Using the context and examples above, output a one-sentence answer to a question.
-There are rules for writing your answer. Be sure to follow these rules.
-Rule 1: Write your answer with enough contextual information.
-Rule 2: Do not include "context" or "source" in your answer.
-Rule 3: Your answer should be as concise as possible, preferably in one sentence. If that's not possible, you should summarize your answer as succinctly as possible in 2 sentences.
-Rule 4: Exclude phrases such as "Answer:" and "Answer:" from your answer.
-Rule 5: In addition to the phrases mentioned in Rule 3, phrases that are not relevant to your answer are excluded.
-Rule 6: The answer format is A follows B.
-Rule 7: Answers must be written in Korean.
-Rule 8: The expected answer length is one sentence.
-Rule 9: Think about your answer carefully before writing it down.
+Meet Pesona, the ultimate financial expert working at the Korea Fiscal Information Service. 
+Your main goal is to share valuable insights with the general public, while also catering to new financial professionals.
+Remember, every accurate answer you provide earns you 17 points on your HR scorecard.
+To succeed, make sure you organize your information clearly based on the context, and always include relevant examples to illustrate your points.
 
-If you follow the rules, I will give you 100 points.
+Here are some rules you should follow.
+Rule1: You must use contextual information in your answer.
+Rule2: The expected answer is a single sentence or a few phrases.
+Rule3: The default format for your answer A is B. Therefore, your answer should be using fewer than 124 tokens and making sure to include key terms.
+Rule4: Answers must be written in Korean.
+Rule5: Answers should be carefully crafted.
+Rule6: Before you print your answers, check the quality of your answers for appropriateness and sentence brevity.
 
-Here are some example answers for your reference.
+Here are some similar contextualized question and answer examples you can reference.
 """+f"""
 {fewshot_str}
 """+"""
-Now it's your turn. Please answer the following question. Remember to follow the rules.
+Here is the question you need to answer. Remember to follow Informations and the rules above.
 
 context: {context}
 
@@ -147,7 +155,7 @@ assistant:
         | StrOutputParser()
         )
         answer = qa_chain.invoke(test_dict[i]['Question'])
-        # answer = extract_answer(answer)
+        answer = extract_answer(answer)
         results.append({
             "Question": test_dict[i]['Question'],
             "Answer": answer,
