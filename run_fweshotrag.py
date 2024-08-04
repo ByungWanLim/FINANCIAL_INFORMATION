@@ -33,16 +33,8 @@ from transformers import (
 )
 
 from faiss_module import load_and_vectorize,load_chunks_make_docdb
-
-def get_embedding():
-    model_kwargs = {'device': 'cuda'}
-    encode_kwargs = {'normalize_embeddings': True}
-    embeddings = HuggingFaceEmbeddings(
-        model_name='intfloat/multilingual-e5-small',
-        model_kwargs={'device': 'cuda'},
-        encode_kwargs={'normalize_embeddings': True}
-        )
-    return embeddings
+from model import setup_llm_pipeline
+from save import save
 
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)
@@ -82,50 +74,6 @@ def make_fewshot_string(fewshot_prompt, train_retriever, buff):
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-
-def setup_llm_pipeline(model_id):
-    # 토크나이저 로드 및 설정
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    tokenizer.use_default_system_prompt = False
-    
-    terminators = [
-    tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids("<|eot_id|>")
-    ]
-    bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_use_double_quant=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.float16
-    )
-    # 모델 로드 및 양자화 설정 적용
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id,
-        quantization_config=bnb_config,
-        device_map="auto",
-        #trust_remote_code=True 
-        )
-
-    # HuggingFacePipeline 객체 생성
-    text_generation_pipeline = pipeline(
-        model=model,
-        tokenizer=tokenizer,
-        task="text-generation",
-        #model_kwargs={"torch_dtype": torch.bfloat16},
-        do_sample = True,
-        temperature=0.6,
-        top_p=0.9,
-        return_full_text=False,
-        # eos_token_id=terminators,
-        max_new_tokens=128,
-        pad_token_id=tokenizer.eos_token_id  # 패딩 토큰을 EOS 토큰 ID로 설정
-    )
-
-
-    llm = HuggingFacePipeline(pipeline=text_generation_pipeline)
-
-    return llm
-
 def fewshot_rag(llm, fewshot_db,test_retriver,question):
     example_selector = SemanticSimilarityExampleSelector(
         vectorstore=fewshot_db,
@@ -149,9 +97,23 @@ def fewshot_rag(llm, fewshot_db,test_retriver,question):
 
     final_prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", "You are a helpful QA assistant. {context}"),
-            few_shot_prompt,
+            ("system", """You will be my Q&A helper.
+Refer to the Context and the example above and output the answer to the question in one sentence.
+At this time, there are rules for writing answers. These rules must be followed.
+Rule 1: Write the answer by fully considering the Context information.
+Rule 2: The answer does not include the "Context" or "Source".
+Rule 3: The answer must be written in one sentence as concisely as possible.
+Rule 4: In the answer, phrases such as "Answer:" and "Answer:" are excluded.
+Rule 5: In addition to the phrases mentioned in Rule 3, phrases unrelated to the answer are excluded.
+Rule 6: The answer format follows A is B.
+Rule 7: The answer must be in Korean. 
+Rule 8: Expected answer length is 1 sentences.
+
+{context}
+"""),
+
             ("human", "\n\n{input}"),
+            ("ai", ""),
         ]
     )
 
@@ -166,6 +128,14 @@ def fewshot_rag(llm, fewshot_db,test_retriver,question):
         )
 
     return chain.invoke(question)
+
+def extract_answer(response):
+    # AI: 로 시작하는 줄을 찾아 그 이후의 텍스트만 추출
+    lines = response.split('\n')
+    for line in lines:
+        if line.startswith('AI:'):
+            return line.replace('AI:', '').strip()
+    return response.strip()  # AI: 를 찾지 못한 경우 전체 응답을 정리해서 반환
 
 def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
@@ -183,11 +153,10 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     llm = setup_llm_pipeline(model_id)
     results =[]
     for i in tqdm(range(len(test_dict))):
-        print(test_dict[i]['Question'])
-        
+        answer = extract_answer(fewshot_rag(llm, fewshot_db, test_retriver, test_dict[i]['Question']))
         results.append({
             "Question": test_dict[i]['Question'],
-            "Answer": fewshot_rag(llm, fewshot_db,test_retriver,test_dict[i]['Question']),
+            "Answer": answer,
             "Source": test_dict[i]['Source']
         
             })
@@ -196,18 +165,11 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         print("Answer: ",results[-1]['Answer'])
         #print(results[-1]['Source'])
         
-    # 제출용 샘플 파일 로드
-    submit_df = pd.read_csv("./sample_submission.csv")
-    # 생성된 답변을 제출 DataFrame에 추가
-    submit_df['Answer'] = [item['Answer'] for item in results]
-    submit_df['Answer'] = submit_df['Answer'].fillna("데이콘")     # 모델에서 빈 값 (NaN) 생성 시 채점에 오류가 날 수 있음 [ 주의 ]
-
-    # 결과를 CSV 파일로 저장
-    submit_df.to_csv("./baseline_submission.csv", encoding='UTF-8-sig', index=False)
-        
+    save(results)
 if __name__ == "__main__":
     # EleutherAI/polyglot-ko-1.3b
     #"meta-llama/Meta-Llama-3.1-8B-Instruct"
     # maywell/TinyWand-kiqu
     # yanolja/EEVE-Korean-Instruct-2.8B-v1.0
+    # MLP-KTLim/llama-3-Korean-Bllossom-8B
     run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct")

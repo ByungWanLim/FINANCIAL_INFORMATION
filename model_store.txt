@@ -1,0 +1,5 @@
+EleutherAI/polyglot-ko-1.3b
+meta-llama/Meta-Llama-3.1-8B-Instruct
+maywell/TinyWand-kiqu
+yanolja/EEVE-Korean-Instruct-2.8B-v1.0
+MLP-KTLim/llama-3-Korean-Bllossom-8B
