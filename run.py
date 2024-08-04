@@ -35,7 +35,6 @@ from faiss_module import load_and_vectorize,load_chunks_make_docdb
 from model import setup_llm_pipeline
 from save import save
 from seed import seed_everything
-import unicodedata
 
 seed_everything(7777)
 
@@ -73,10 +72,6 @@ def make_fewshot_string(fewshot_prompt, train_retriever, buff):
         num = "Example {}\n".format(i+1)
         fewshot_list[i] = num + "context: " + retrieved_docs[0].page_content + entry + '\n\n'
     return str(fewshot_list)
-
-def normalize_string(s):
-    """유니코드 정규화"""
-    return unicodedata.normalize('NFC', s)
 
 def format_docs(docs):
     """검색된 문서들을 하나의 문자열로 포맷팅"""
@@ -125,12 +120,12 @@ Remember, every accurate answer you provide earns you 17 points on your HR score
 To succeed, make sure you organize your information clearly based on the context, and always include relevant examples to illustrate your points.
 
 Here are some rules you should follow.
-Rule1: You must use contextual information in your answer.
-Rule2: The expected answer is a single sentence or a few phrases.
-Rule3: The default format for your answer A is B. Therefore, your answer should be using fewer than 124 tokens and making sure to include key terms.
-Rule4: Answers must be written in Korean.
-Rule5: Answers should be carefully crafted.
-Rule6: Before you print your answers, check the quality of your answers for appropriateness and sentence brevity.
+Rule 1: You must use contextual information in your answer.
+Rule 2: The default format for your answer A is B. expected answer is a single sentence or phrase that makes sense.
+Rule 3: Your answer should be using fewer than 126 tokens.
+Rule 4: Before you print your answers, check the quality of your answers for appropriateness and sentence brevity.
+Rule 5: Answers should be carefully before crafted.
+Rule 6: The answer must be in Korean.
 
 Here are some similar contextualized question and answer examples you can reference.
 """+f"""
@@ -155,12 +150,11 @@ assistant:
         | StrOutputParser()
         )
         answer = qa_chain.invoke(test_dict[i]['Question'])
-        answer = extract_answer(answer)
+        #answer = extract_answer(answer)
         results.append({
             "Question": test_dict[i]['Question'],
             "Answer": answer,
             "Source": test_dict[i]['Source']
-        
             })
         print("================================================")
         print("Questions: ",results[-1]['Question'])

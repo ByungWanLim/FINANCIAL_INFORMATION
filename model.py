@@ -15,10 +15,8 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     pad_token_id = tokenizer.convert_tokens_to_ids("<pad>")
 
     # terminators 설정
-    terminators = [
-        tokenizer.eos_token_id
-    ]
-    
+    terminators = tokenizer.eos_token_id
+
     # 양자화 설정 적용
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -46,11 +44,11 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         tokenizer=tokenizer,
         task="text-generation",
         do_sample=True,
-        temperature=0.5,
-        top_p=0.5,
+        temperature=0.6,
+        top_p=0.6,
         return_full_text=False,
         eos_token_id=terminators,
-        max_new_tokens=256,
+        max_new_tokens=512,
         pad_token_id=pad_token_id  # 패딩 토큰 ID 설정
     )
 

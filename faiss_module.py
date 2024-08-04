@@ -19,6 +19,11 @@ from langchain_core.prompts import (
 )
 import pickle
 from langchain_core.example_selectors import SemanticSimilarityExampleSelector
+import unicodedata
+
+def normalize_string(s):
+    """유니코드 정규화"""
+    return unicodedata.normalize('NFC', s)
 
 def get_embedding():
     embeddings = HuggingFaceEmbeddings(
@@ -40,8 +45,8 @@ def load_and_vectorize(csv_path, db_path):
     trainset = train_df.to_dict(orient='records')
     print("Loaded Fewshot Set:", trainset[:3])
     
-    # 벡터화할 텍스트 생성
-    to_vectorize = ["\n\n".join(example.values()) for example in trainset]
+    # 벡터화할 텍스트 생성 및 유니코드 정규화
+    to_vectorize = ["\n\n".join(normalize_string(value) for value in example.values()) for example in trainset]
     
     # 벡터화 및 FAISS DB 생성
     fewshow_vectordb = FAISS.from_texts(to_vectorize, embedding=get_embedding(), metadatas=trainset)
@@ -78,6 +83,10 @@ def load_chunks_make_docdb(pdf_directory, db_path):
         pdf_documents = loader.load()
         documents.extend(pdf_documents)
     
+    # 유니코드 정규화
+    for doc in documents:
+        doc.page_content = normalize_string(doc.page_content)
+
     # 분할된 텍스트를 벡터로 변환하여 FAISS DB에 저장
     chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = chunk_splitter.split_documents(documents)
