@@ -102,7 +102,7 @@ Refer to the Context and the example above and output the answer to the question
 At this time, there are rules for writing answers. These rules must be followed.
 Rule 1: Write the answer by fully considering the Context information.
 Rule 2: The answer does not include the "Context" or "Source".
-Rule 3: The answer must be written in one sentence as concisely as possible.
+Rule 3: The answer must be written in one phrase as concisely as possible like exmaples below.
 Rule 4: In the answer, phrases such as "Answer:" and "Answer:" are excluded.
 Rule 5: In addition to the phrases mentioned in Rule 3, phrases unrelated to the answer are excluded.
 Rule 6: The answer format follows A is B.

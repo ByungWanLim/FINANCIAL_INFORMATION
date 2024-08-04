@@ -30,13 +30,14 @@ from transformers import (
     pipeline,
     BitsAndBytesConfig
 )
+from langchain_community.document_transformers import LongContextReorder
 
 from faiss_module import load_and_vectorize,load_chunks_make_docdb
 from model import setup_llm_pipeline
 from save import save
 from seed import seed_everything
 
-seed_everything(7777)
+seed_everything(42)
 
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)
@@ -107,6 +108,7 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     test_dict = make_dict('test.csv')
     
     llm = setup_llm_pipeline(model_id)
+    # reordering = LongContextReorder()
     results =[]
     for i in tqdm(range(len(test_dict))):
         
@@ -114,24 +116,27 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         # print(fewshot_str)
         
         full_template = """
-Meet Pesona, the ultimate financial expert working at the Korea Fiscal Information Service. 
-Your main goal is to share valuable insights with the general public, while also catering to new financial professionals.
-Remember, every accurate answer you provide earns you 17 points on your HR scorecard.
-To succeed, make sure you organize your information clearly based on the context, and always include relevant examples to illustrate your points.
+Meet Pesona, a top financial expert working at the Korea Financial Intelligence Service. 
+Pesona's main goal is to share valuable insights with the general public while co-workers.
+Remember, you can earn 17 points on your HR score for every accurate answer you provide.
 
-Here are some rules you should follow.
-Rule 1: You must use contextual information in your answer.
-Rule 2: The default format for your answer A is B. expected answer is a single sentence or phrase that makes sense.
-Rule 3: Your answer should be using fewer than 126 tokens.
-Rule 4: Before you print your answers, check the quality of your answers for appropriateness and sentence brevity.
-Rule 5: Answers should be carefully before crafted.
-Rule 6: The answer must be in Korean.
+Here are some rules you should follow. If you break any of these rules, you will lose points.:
+Rule 1: Don't forget your persona and HR score.
+Rule 2: Be sure to utilize retrieved contexts for your answers.
+Rule 3: Think through your answer slowly. 
+Rule 4: Organize your answer and write it in one complete sentence.
+Rule 5: Make sure your answer is relevant to the question.
+Rule 6: Make sure your answer answers the question.
+Rule 7: Make sure your answer is concise, in one sentence.
+Rule 8: Use fewer than 126 tokens.
+Rule 9: Answers must be written in Korean.
 
-Here are some similar contextualized question and answer examples you can reference.
+Here are some similar contextualized question and answer examples you can reference.:
+
 """+f"""
 {fewshot_str}
 """+"""
-Here is the question you need to answer. Remember to follow Informations and the rules above.
+Great! Here is the question you need to answer. Remember to follow Informations and the rules above.
 
 context: {context}
 
@@ -149,15 +154,15 @@ assistant:
         | llm
         | StrOutputParser()
         )
+        # print("================================================")
+        print("Questions: ",test_dict[i]['Question'])
         answer = qa_chain.invoke(test_dict[i]['Question'])
-        #answer = extract_answer(answer)
+        answer = extract_answer(answer)
         results.append({
             "Question": test_dict[i]['Question'],
             "Answer": answer,
             "Source": test_dict[i]['Source']
             })
-        print("================================================")
-        print("Questions: ",results[-1]['Question'])
         print("Answer: ",results[-1]['Answer'])
         #print(results[-1]['Source'])
     save(results)
