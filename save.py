@@ -8,5 +8,5 @@ def save(results):
     submit_df['Answer'] = submit_df['Answer'].fillna("데이콘")     # 모델에서 빈 값 (NaN) 생성 시 채점에 오류가 날 수 있음 [ 주의 ]
     time = pd.Timestamp.now()
     # 결과를 CSV 파일로 저장
-    submit_df.to_csv(f"./submission/baseline_submission_{time.month}_{time.day}_{time.hour}{time.minute}.csv", encoding='UTF-8-sig', index=False)
+    submit_df.to_csv(f"./submission/sub_{time.month}_{time.day}_{time.hour}{time.minute}.csv", encoding='UTF-8-sig', index=False)
     print("저장 완료")
