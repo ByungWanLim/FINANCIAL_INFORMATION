@@ -34,16 +34,9 @@ from transformers import (
 from faiss_module import load_and_vectorize,load_chunks_make_docdb
 from model import setup_llm_pipeline
 from save import save
+from seed import seed_everything
 
-def get_embedding():
-    model_kwargs = {'device': 'cuda'}
-    encode_kwargs = {'normalize_embeddings': True}
-    embeddings = HuggingFaceEmbeddings(
-        model_name='intfloat/multilingual-e5-small',
-        model_kwargs={'device': 'cuda'},
-        encode_kwargs={'normalize_embeddings': True}
-        )
-    return embeddings
+seed_everything(7777)
 
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)
