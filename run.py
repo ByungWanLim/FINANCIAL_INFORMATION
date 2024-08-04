@@ -90,7 +90,7 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     fewshot_prompt = make_fewshot_prompt(fewshot_db)
     
     train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')
-    train_retriever = train_db.as_retriever(search_type = "mmr",search_kwargs={'k': 3})
+    train_retriever = train_db.as_retriever(search_type = "mmr",search_kwargs={'k': 1})
     
     test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')
     test_retriver = test_db.as_retriever(search_type = "mmr",search_kwargs={'k': 3})
