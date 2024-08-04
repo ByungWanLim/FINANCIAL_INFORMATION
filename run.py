@@ -46,7 +46,7 @@ def make_dict(dir='train.csv'):
 
 def make_fewshot_prompt(fewshot_vectordb, k = 3):
     # Semantic Similarity Example Selector 설정
-    example_prompt = PromptTemplate.from_template("Question: {Question}\nAnswer: {Answer}\nSource: {Source}")
+    example_prompt = PromptTemplate.from_template("<|start_header_id|>user<|end_header_id|>: {Question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>: <|begin_of_text|>{Answer}<|end_of_text|>")
 
     example_selector = SemanticSimilarityExampleSelector(
         vectorstore=fewshot_vectordb,
@@ -70,7 +70,7 @@ def make_fewshot_string(fewshot_prompt, train_retriever, buff):
         question = question.replace('Question: ', '')
         retrieved_docs = train_retriever.invoke(question)
         num = "Example {}\n".format(i+1)
-        fewshot_list[i] = num + retrieved_docs[0].page_content + entry + '\n\n'
+        fewshot_list[i] = num + "context: " + retrieved_docs[0].page_content + entry + '\n\n'
     return str(fewshot_list)
 
 def format_docs(docs):
@@ -82,7 +82,10 @@ def extract_answer(response):
     for line in lines:
         if line.startswith('Answer:'):
             return line.replace('Answer:', '').strip()
+        if line.startswith('assistant:'):
+            return line.replace('assistant:', '').strip()
     return response.strip()  # AI: 를 찾지 못한 경우 전체 응답을 정리해서 반환
+
 
 
 def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
@@ -106,26 +109,32 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         # print(fewshot_str)
         
         full_template = """
-You will be my Q&A helper.
-Refer to the Context and the example above and output the answer to the question in one sentence.
-At this time, there are rules for writing answers. These rules must be followed.
-Rule 1: Write the answer by fully considering the Context information.
-Rule 2: The answer does not include the "Context" or "Source".
-Rule 3: The answer must be written in one sentence as concisely as possible.
-Rule 4: In the answer, phrases such as "Answer:" and "Answer:" are excluded.
-Rule 5: In addition to the phrases mentioned in Rule 3, phrases unrelated to the answer are excluded.
-Rule 6: The answer format follows A is B.
-Rule 7: The answer must be in Korean.
-Rule 8: Expected answer length is 1 sentences.
+You are a Greatest Financial Information Q&A helper.
+Using the context and examples above, output a one-sentence answer to a question.
+There are rules for writing your answer. Be sure to follow these rules.
+Rule 1: Write your answer with enough contextual information.
+Rule 2: Do not include "context" or "source" in your answer.
+Rule 3: Your answer should be as concise as possible, preferably in one sentence. If that's not possible, you should summarize your answer as succinctly as possible in 2 sentences.
+Rule 4: Exclude phrases such as "Answer:" and "Answer:" from your answer.
+Rule 5: In addition to the phrases mentioned in Rule 3, phrases that are not relevant to your answer are excluded.
+Rule 6: The answer format is A follows B.
+Rule 7: Answers must be written in Korean.
+Rule 8: The expected answer length is one sentence.
+Rule 9: Think about your answer carefully before writing it down.
 
+If you follow the rules, I will give you 100 points.
+
+Here are some example answers for your reference.
 """+f"""
 {fewshot_str}
 """+"""
+Now it's your turn. Please answer the following question. Remember to follow the rules.
 
-Context:{context}
+context: {context}
 
-Question: {input}
+user: {input}
 
+assistant:
 """
         prompt = PromptTemplate.from_template(full_template)
         qa_chain = (
@@ -137,10 +146,11 @@ Question: {input}
         | llm
         | StrOutputParser()
         )
-       
+        answer = qa_chain.invoke(test_dict[i]['Question'])
+        # answer = extract_answer(answer)
         results.append({
             "Question": test_dict[i]['Question'],
-            "Answer": extract_answer(qa_chain.invoke(test_dict[i]['Question'])),
+            "Answer": answer,
             "Source": test_dict[i]['Source']
         
             })
