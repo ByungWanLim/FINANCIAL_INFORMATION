@@ -37,7 +37,7 @@ from model import setup_llm_pipeline
 from save import save
 from seed import seed_everything
 
-seed_everything(42)
+#seed_everything(42)
 
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)
@@ -45,9 +45,9 @@ def make_dict(dir='train.csv'):
     
     return df.to_dict(orient='records')
 
-def make_fewshot_prompt(fewshot_vectordb, k = 3):
+def make_fewshot_prompt(fewshot_vectordb, k = 10):
     # Semantic Similarity Example Selector 설정
-    example_prompt = PromptTemplate.from_template("<|start_header_id|>user<|end_header_id|>: {Question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>: <|begin_of_text|>{Answer}<|end_of_text|>")
+    example_prompt = PromptTemplate.from_template("<|start_header_id|>user<|end_header_id|>: <|begin_of_text|>{Question}<|end_of_text|>\n<|start_header_id|>assistant<|end_header_id|>: <|begin_of_text|>{Answer}<|end_of_text|>")
 
     example_selector = SemanticSimilarityExampleSelector(
         vectorstore=fewshot_vectordb,
@@ -71,7 +71,7 @@ def make_fewshot_string(fewshot_prompt, train_retriever, buff):
         question = question.replace('Question: ', '')
         retrieved_docs = train_retriever.invoke(question)
         num = "Example {}\n".format(i+1)
-        fewshot_list[i] = num + "context: " + retrieved_docs[0].page_content + entry + '\n\n'
+        fewshot_list[i] = num + "<|start_header_id|>context<|end_header_id|>: <|begin_of_text|>" + entry + '<|end_of_text|>\n\n##################################################'
     return str(fewshot_list)
 
 def format_docs(docs):
@@ -112,37 +112,30 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     results =[]
     for i in tqdm(range(len(test_dict))):
         
-        fewshot_str = make_fewshot_string(fewshot_prompt, train_retriever, test_dict[i])
+        # fewshot_str = make_fewshot_string(fewshot_prompt, train_retriever, test_dict[i])
         # print(fewshot_str)
         
         full_template = """
-Meet Pesona, a top financial expert working at the Korea Financial Intelligence Service. 
-Pesona's main goal is to share valuable insights with the general public while co-workers.
-Remember, you can earn 17 points on your HR score for every accurate answer you provide.
+##################################################
+You will be my Financial Q&A helper.
 
-Here are some rules you should follow. If you break any of these rules, you will lose points.:
-Rule 1: Don't forget your persona and HR score.
-Rule 2: Be sure to utilize retrieved contexts for your answers.
-Rule 3: Think through your answer slowly. 
-Rule 4: Organize your answer and write it in one complete sentence.
-Rule 5: Make sure your answer is relevant to the question.
-Rule 6: Make sure your answer answers the question.
-Rule 7: Make sure your answer is concise, in one sentence.
-Rule 8: Use fewer than 126 tokens.
-Rule 9: Answers must be written in Korean.
+##################################################
 
-Here are some similar contextualized question and answer examples you can reference.:
+""" +"""Here are some rules you should follow.
 
-"""+f"""
-{fewshot_str}
-"""+"""
-Great! Here is the question you need to answer. Remember to follow Informations and the rules above.
+Rule 1: Be sure to utilize retrieved contexts for your answers.
+Rule 2: The most important thing is to be concise and relevant in your answers. 
+Rule 3: Answers must be written in Korean.
+Rule 4: Use fewer than 128 words.
+Rule 5: If you can't answer that, try summarizing the context and make it a 1-2 Sentence summary.
 
-context: {context}
+##################################################
+context: 
+{context}
 
-user: {input}
+<|start_header_id|>user<|end_header_id|>: <|begin_of_text|>{input}<|end_of_text|>
 
-assistant:
+<|start_header_id|>assistant<|end_header_id|>: 
 """
         prompt = PromptTemplate.from_template(full_template)
         qa_chain = (
