@@ -37,7 +37,7 @@ from model import setup_llm_pipeline
 from save import save
 from seed import seed_everything
 
-#seed_everything(42)
+# seed_everything(42)
 
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)
