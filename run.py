@@ -117,8 +117,8 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         
         full_template = """
 ##################################################
-You will be my Financial Q&A helper.
-
+You are the financial literacy expert who helps me with my financial literacy Q&As.
+You earn 10 points when you answer me and follow the rules and lose 12 points when you don't.
 ##################################################
 
 """ +"""Here are some rules you should follow.
