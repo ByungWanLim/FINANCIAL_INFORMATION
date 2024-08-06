@@ -113,7 +113,7 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     
     for i in tqdm(range(len(test_dict))):
         
-        if i % 30 == 0:
+        if i % 8 == 0:
             print("Clearing cache")
             torch.cuda.empty_cache()
 
