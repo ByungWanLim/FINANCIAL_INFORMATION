@@ -45,13 +45,13 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         model=model,
         tokenizer=tokenizer,
         task="text-generation",
-        do_sample=True,
-        temperature=0.4,
-        top_p=0.5,
+        #do_sample=True,
+        #temperature=0.6,
+        #top_p=0.8,
         #top_k=10,
         return_full_text=False,
         eos_token_id=terminators,
-        max_new_tokens=512,
+        max_new_tokens=450,
         
         pad_token_id=pad_token_id  # 패딩 토큰 ID 설정
     )

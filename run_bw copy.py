@@ -84,14 +84,14 @@ def format_docs(docs):
 
 def extract_answer(response):
     # AI: 로 시작하는 줄을 찾아 그 이후의 텍스트만 추출
-    lines = response.split('\n')
-    for line in lines:
-        if line.startswith('Answer:'):
-            return line.replace('Answer:', '').strip()
-        if line.startswith('assistant:'):
-            return line.replace('assistant:', '').strip()
-    return response.strip()  # AI: 를 찾지 못한 경우 전체 응답을 정리해서 반환
-
+    # lines = response.split('\n')
+    # for line in lines:
+    #     if line.startswith('Answer:'):
+    #         return line.replace('Answer:', '').strip()
+    #     if line.startswith('assistant:'):
+    #         return line.replace('assistant:', '').strip()
+    # return response.strip()  # AI: 를 찾지 못한 경우 전체 응답을 정리해서 반환
+    return response
 
 
 def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
@@ -113,7 +113,7 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     
     for i in tqdm(range(len(test_dict))):
         
-        if i % 8 == 0:
+        if i % 30 == 0:
             print("Clearing cache")
             torch.cuda.empty_cache()
 
@@ -121,36 +121,18 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         # print(fewshot_str)
         
         full_template = """
-Meet Persona, a top financial expert working at the Korea Financial Intelligence Service. 
-Persona's main goal is to share valuable insights with the general public while co-workers.
-Remember, you can earn 17 points on your HR score for every accurate answer you provide.
-
-Here are some rules you should follow. If you break any of these rules, you will lose points.:
-Rule 1: Don't forget your persona and HR score.
-Rule 2: Be sure to utilize retrieved contexts for your answers.
-Rule 3: Think through your answer slowly. 
-Rule 4: Organize your answer and write it in just one complete sentence.
-Rule 5: Make sure your answer is relevant to the question.
-Rule 6: Make sure your answer answers the question.
-Rule 7: Make sure your answer is concise, in one sentence.
-Rule 8: Use fewer than 126 tokens.
-Rule 9: Answers must be written in Korean.
-Rule 10: Do not repeat the same words in your answer.
-Rule 11: If you find yourself repeating the same word or phrase, stop immediately and rephrase your answer.
-Rule 12: Your answer should be diverse and informative. Avoid listing the same organization multiple times.
-
-Here are some similar contextualized question and answer examples you can reference.:
-
 """+f"""
 {fewshot_str}
 """+"""
-Great! Here is the question you need to answer. Remember to follow Informations and the rules above.
+다음 정보를 바탕으로 질문에 답하세요:
 
 context: {context}
 
 user: {input}
 
 assistant:
+
+주어진 질문에만 답변하세요. 짧고 간결하게 한 문장으로만 답변해주세요. 같은 단어, 문장 반복 금지.
 """
         prompt = PromptTemplate.from_template(full_template)
         qa_chain = (
