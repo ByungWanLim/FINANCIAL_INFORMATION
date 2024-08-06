@@ -123,11 +123,10 @@ You earn 10 points when you answer me and follow the rules and lose 12 points wh
 
 """ +"""Here are some rules you should follow.
 
-Rule 1: Be sure to utilize retrieved contexts for your answers.
-Rule 2: The most important thing is to be concise and relevant in your answers. 
-Rule 3: Answers must be written in Korean.
-Rule 4: Use fewer than 128 words.
-Rule 5: If you can't answer that, try summarizing the context and make it a 1-2 Sentence summary.
+Rule 1: Answers should be based on the context of the search.
+Rule 2: Use 128 words or less in your answer, and summarize in one sentence if possible.
+Rule 3. Use plain text format for your answer.
+Rule 4. Answers must be written in Korean.
 
 ##################################################
 context: 
