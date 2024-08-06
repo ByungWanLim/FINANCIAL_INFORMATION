@@ -7,7 +7,10 @@ import torch
 def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     # 토크나이저 로드 및 설정
     tokenizer = AutoTokenizer.from_pretrained(model_id,
-                                              use_default_system_prompt = False
+                                              use_default_system_prompt = False,
+                                                  eos_token_id=128001 ,
+                                                pad_token_id=128001 ,
+                                                bos_token_id = 128000,
                                               )
     
     # 패딩 토큰 추가
@@ -29,7 +32,9 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         quantization_config=bnb_config,
-        
+        eos_token_id=128001 ,
+        pad_token_id=128001 ,
+        bos_token_id = 128000,
         device_map="auto",
     )
     
@@ -45,7 +50,7 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         tokenizer=tokenizer,
         task="text-generation",
         do_sample=True,
-        temperature=0.6,
+        temperature=0.4,
         top_p=0.6,
         return_full_text=False,
         eos_token_id=terminators,
@@ -57,3 +62,5 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     llm = HuggingFacePipeline(pipeline=text_generation_pipeline)
 
     return llm
+
+
