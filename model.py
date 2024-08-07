@@ -8,7 +8,7 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     # 토크나이저 로드 및 설정
     tokenizer = AutoTokenizer.from_pretrained(model_id,
                                               use_default_system_prompt = False,
-                                                  eos_token_id=128001 ,
+                                                eos_token_id=128001 ,
                                                 pad_token_id=128001 ,
                                                 bos_token_id = 128000,
                                               )
@@ -49,11 +49,13 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         model=model,
         tokenizer=tokenizer,
         task="text-generation",
+        do_sample=True,
         temperature=0.4,
-        repetition_penalty=1.2,  # 반복 제어 설정 추가
+        top_p=0.9,
         return_full_text=False,
         eos_token_id=terminators,
         max_new_tokens=512,
+        repetition_penalty=1.2,  # 반복 제어 설정 추가
         pad_token_id=pad_token_id  # 패딩 토큰 ID 설정
     )
 

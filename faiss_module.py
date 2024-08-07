@@ -88,7 +88,7 @@ def load_chunks_make_docdb(pdf_directory, db_path):
         doc.page_content = normalize_string(doc.page_content)
 
     # 분할된 텍스트를 벡터로 변환하여 FAISS DB에 저장
-    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=32)
     chunks = chunk_splitter.split_documents(documents)
     print("Done.", len(chunks), "chunks")
     
