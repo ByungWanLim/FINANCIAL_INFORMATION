@@ -37,7 +37,7 @@ from model import setup_llm_pipeline
 from save import save
 from seed import seed_everything
 
-#seed_everything(42)
+seed_everything(42)
 
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)
@@ -117,17 +117,16 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         
         full_template = """
 ##################################################
-You will be my Financial Q&A helper.
-
+You are the financial literacy expert who helps me with my financial literacy Q&As.
+You earn 10 points when you answer me and follow the rules and lose 12 points when you don't.
 ##################################################
 
 """ +"""Here are some rules you should follow.
 
-Rule 1: Be sure to utilize retrieved contexts for your answers.
-Rule 2: The most important thing is to be concise and relevant in your answers. 
-Rule 3: Answers must be written in Korean.
-Rule 4: Use fewer than 128 words.
-Rule 5: If you can't answer that, try summarizing the context and make it a 1-2 Sentence summary.
+Rule 1: Answers should be based on the context of the search.
+Rule 2: Use 128 words or less in your answer, and summarize in one sentence if possible.
+Rule 3. Use plain text format for your answer.
+Rule 4. Answers must be written in Korean.
 
 ##################################################
 context: 
