@@ -132,7 +132,9 @@ user: {input}
 
 assistant:
 
-주어진 질문에만 답변하세요. 짧고 간결하게 한 문장으로만 답변해주세요. 같은 단어, 문장 반복 금지.
+주어진 질문에만 답변하세요. 
+짧고 간결한 하나의 문장으로만 답변해주세요.
+같은 내용을 반복하지 마세요.
 """
         prompt = PromptTemplate.from_template(full_template)
         qa_chain = (
