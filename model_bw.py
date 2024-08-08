@@ -35,7 +35,7 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     
     # 모델의 패딩 토큰 ID 설정
     model.config.pad_token_id = pad_token_id
-    model.config.eos_token_id = terminators
+    #model.config.eos_token_id = terminators
     
     # 토크나이저에 추가된 토큰에 맞게 모델의 임베딩 레이어 재초기화
     model.resize_token_embeddings(len(tokenizer))
@@ -51,8 +51,8 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         #top_k=10,
         return_full_text=False,
         eos_token_id=terminators,
-        max_new_tokens=400,
-        repetition_penalty=1.1,
+        max_new_tokens=512,
+        repetition_penalty=1.2,
         pad_token_id=pad_token_id  # 패딩 토큰 ID 설정
     )
 

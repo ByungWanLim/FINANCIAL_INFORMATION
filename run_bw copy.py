@@ -84,13 +84,13 @@ def format_docs(docs):
 
 def extract_answer(response):
     # AI: 로 시작하는 줄을 찾아 그 이후의 텍스트만 추출
-    # lines = response.split('\n')
-    # for line in lines:
-    #     if line.startswith('Answer:'):
-    #         return line.replace('Answer:', '').strip()
-    #     if line.startswith('assistant:'):
-    #         return line.replace('assistant:', '').strip()
-    # return response.strip()  # AI: 를 찾지 못한 경우 전체 응답을 정리해서 반환
+    lines = response.split('\n')
+    for line in lines:
+        if line.startswith('Answer:'):
+            return line.replace('Answer:', '').strip()
+        if line.startswith('assistant:'):
+            return line.replace('assistant:', '').strip()
+    return response.strip()  # AI: 를 찾지 못한 경우 전체 응답을 정리해서 반환
     return response
 
 
@@ -167,4 +167,5 @@ if __name__ == "__main__":
     #"meta-llama/Meta-Llama-3.1-8B-Instruct"
     # maywell/TinyWand-kiqu
     # yanolja/EEVE-Korean-Instruct-2.8B-v1.0
+    # aifeifei798/DarkIdol-Llama-3.1-8B-Instruct-1.2-Uncensored 
     run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct")
