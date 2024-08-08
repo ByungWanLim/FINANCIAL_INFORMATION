@@ -109,7 +109,7 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     # train_dict = make_dict('train.csv')
     
     test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')
-    test_retriver = test_db.as_retriever(search_type = "mmr",search_kwargs={'k': 6})
+    test_retriver = test_db.as_retriever(search_kwargs={'k': 3})
     test_dict = make_dict('test.csv')
     
     fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
@@ -118,7 +118,7 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     # reordering = LongContextReorder()
     results =[]
     for i in tqdm(range(len(test_dict))):
-        
+        fewshot_str = ""
         fewshot_str = fewshot_ex(fewshot_prompt, test_dict[i])
         # fewshot_str = ex_with_context(fewshot_str, train_retriever)
         # print(fewshot_str)
@@ -138,7 +138,6 @@ Here are some rules you should follow.
 - Please your answers should be concise.
 - Please answers must be written in Korean.
 - Please answer the question in 1-3 sentences.
-- Your answer must include the key words of the question.
 ##################################################
 \n\n
 Please answer like the example below.

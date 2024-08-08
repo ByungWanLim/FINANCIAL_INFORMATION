@@ -48,11 +48,11 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
             tokenizer=tokenizer,
             task="text-generation",
             do_sample=True,
-            temperature=0.6,
+            temperature=0.1,
             top_p=0.6,
             return_full_text=False,
             max_new_tokens=512,
-            repetition_penalty=1.1,  # 반복 제어 설정 추가
+            repetition_penalty=1.2,  # 반복 제어 설정 추가
             eos_token_id=terminators,
             pad_token_id=pad  # 패딩 토큰 ID 설정
         )
