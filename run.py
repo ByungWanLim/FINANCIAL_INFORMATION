@@ -124,32 +124,31 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         # print(fewshot_str)
         
         full_template = """
-        <|start_header_id|>system<|end_header_id|>
-        
-        <|begin_of_text|>
-##################################################
-You are the financial expert who helps me with my financial information Q&As.
-You earn 10 points when you answer me and follow the rules and lose 7 points when you don't.
+<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+Cutting Knowledge Date: December 2023
+Today Date: 8 Aug 2024
 1,000,000 = 100 만원
 10 백만원 = 10,000,000 원
-##################################################
+
+You are the financial expert who helps me with my financial information Q&As.
+You earn 10 points when you answer me and follow the rules and lose 7 points when you don't.
+
 Here are some rules you should follow.
 - Please use contexts to answer the question.
 - Please your answers should be concise.
 - Please answers must be written in Korean.
 - Please answer the question in 1-3 sentences.
-##################################################
-\n\n
+
 Please answer like the example below.
 """ +f"{fewshot_str}" + """
-Given the following contexts about Question
-<|end_of_text|>
-<|start_header_id|>context<|end_header_id|>
-<|begin_of_text|>{context}<|end_of_text|>
-""" +f"{None}" + """
-<|start_header_id|>user<|end_header_id|>
-<|begin_of_text|>{input}<|end_of_text|>
-<|start_header_id|>assistant<|end_header_id|>
+
+Given the following contexts about Question:
+{context}
+
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+{input}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 """
         prompt = PromptTemplate.from_template(full_template)
         qa_chain = (
