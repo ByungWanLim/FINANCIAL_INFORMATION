@@ -37,7 +37,7 @@ from model import setup_llm_pipeline
 from save import save
 from seed import seed_everything
 
-seed_everything(42)
+seed_everything(52)
 
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)
@@ -45,10 +45,9 @@ def make_dict(dir='train.csv'):
     
     return df.to_dict(orient='records')
 
-def make_fewshot_prompt(fewshot_vectordb, k = 10):
+def make_fewshot_prompt(fewshot_vectordb, k = 3):
     # Semantic Similarity Example Selector 설정
-    example_prompt = PromptTemplate.from_template("<|start_header_id|>user<|end_header_id|>: <|begin_of_text|>{Question}<|end_of_text|>\n<|start_header_id|>assistant<|end_header_id|>: <|begin_of_text|>{Answer}<|end_of_text|>")
-
+    example_prompt = PromptTemplate.from_template("<|start_header_id|>user<|end_header_id|>\n<|begin_of_text|>{Question}<|end_of_text|>\n<|start_header_id|>assistant<|end_header_id|>\n<|begin_of_text|>{Answer}<|end_of_text|>")
     example_selector = SemanticSimilarityExampleSelector(
         vectorstore=fewshot_vectordb,
         k=k,
@@ -63,16 +62,23 @@ def make_fewshot_prompt(fewshot_vectordb, k = 10):
     )
     return fewshot_prompt
 
-def make_fewshot_string(fewshot_prompt, train_retriever, buff):
+def fewshot_ex(fewshot_prompt, buff):
     ex_qa = fewshot_prompt.invoke({"input": buff['Question']}).to_string()
+    #print(ex_qa)
     fewshot_list = ex_qa.split('\n\n')[:-1]
-    for i, entry in enumerate(fewshot_list):
-        question = entry.split('\n')[0]
-        question = question.replace('Question: ', '')
-        retrieved_docs = train_retriever.invoke(question)
-        num = "Example {}\n".format(i+1)
-        fewshot_list[i] = num + "<|start_header_id|>context<|end_header_id|>: <|begin_of_text|>" + entry + '<|end_of_text|>\n\n##################################################'
-    return str(fewshot_list)
+    
+    return '\n\n'.join(fewshot_list)
+
+# def ex_with_context(ex_qa, train_retriever, ):
+#     fewshot_list = ex_qa.split('\n\n')
+#     # print(fewshot_list)
+#     # for i, entry in enumerate(fewshot_list):
+#     #     question = entry.split('\n')[0]
+#     #     question = question.replace('Question: ', '')
+#     #     retrieved_docs = train_retriever.invoke(question)
+#     #     num = "Example {}\n".format(i+1)
+#     #     fewshot_list[i] = num + "<|start_header_id|>context<|end_header_id|>\n<|begin_of_text|>" + entry + '\n\n'
+#     return str(fewshot_list)
 
 def format_docs(docs):
     """검색된 문서들을 하나의 문자열로 포맷팅"""
@@ -95,46 +101,56 @@ def extract_answer(response):
 
 
 def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
-    fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
-    fewshot_prompt = make_fewshot_prompt(fewshot_db)
+
     
-    train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')
-    train_retriever = train_db.as_retriever(search_type = "mmr",search_kwargs={'k': 1})
+    # train에도 RAG를 쓸 때 사용
+    # train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')
+    # train_retriever = train_db.as_retriever(search_type = "mmr",search_kwargs={'k': 2})
+    # train_dict = make_dict('train.csv')
     
     test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')
-    test_retriver = test_db.as_retriever(search_type = "mmr",search_kwargs={'k': 3})
-    
-    train_dict = make_dict('train.csv')
+    test_retriver = test_db.as_retriever(search_type = "mmr",search_kwargs={'k': 6})
     test_dict = make_dict('test.csv')
     
+    fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
+    fewshot_prompt = make_fewshot_prompt(fewshot_db, k=5)
     llm = setup_llm_pipeline(model_id)
     # reordering = LongContextReorder()
     results =[]
     for i in tqdm(range(len(test_dict))):
         
-        # fewshot_str = make_fewshot_string(fewshot_prompt, train_retriever, test_dict[i])
+        fewshot_str = fewshot_ex(fewshot_prompt, test_dict[i])
+        # fewshot_str = ex_with_context(fewshot_str, train_retriever)
         # print(fewshot_str)
         
         full_template = """
+        <|start_header_id|>system<|end_header_id|>
+        
+        <|begin_of_text|>
 ##################################################
-You are the financial literacy expert who helps me with my financial literacy Q&As.
-You earn 10 points when you answer me and follow the rules and lose 12 points when you don't.
+You are the financial expert who helps me with my financial information Q&As.
+You earn 10 points when you answer me and follow the rules and lose 7 points when you don't.
+1,000,000 = 100 만원
+10 백만원 = 10,000,000 원
 ##################################################
-
-""" +"""Here are some rules you should follow.
-
-Rule 1: Answers should be based on the context of the search.
-Rule 2: Use 128 words or less in your answer, and summarize in one sentence if possible.
-Rule 3. Use plain text format for your answer.
-Rule 4. Answers must be written in Korean.
-
+Here are some rules you should follow.
+- Please use contexts to answer the question.
+- Please your answers should be concise.
+- Please answers must be written in Korean.
+- Please answer the question in 1-3 sentences.
+- Your answer must include the key words of the question.
 ##################################################
-context: 
-{context}
-
-<|start_header_id|>user<|end_header_id|>: <|begin_of_text|>{input}<|end_of_text|>
-
-<|start_header_id|>assistant<|end_header_id|>: 
+\n\n
+Please answer like the example below.
+""" +f"{fewshot_str}" + """
+Given the following contexts about Question
+<|end_of_text|>
+<|start_header_id|>context<|end_header_id|>
+<|begin_of_text|>{context}<|end_of_text|>
+""" +f"{None}" + """
+<|start_header_id|>user<|end_header_id|>
+<|begin_of_text|>{input}<|end_of_text|>
+<|start_header_id|>assistant<|end_header_id|>
 """
         prompt = PromptTemplate.from_template(full_template)
         qa_chain = (
@@ -147,7 +163,7 @@ context:
         | StrOutputParser()
         )
         # print("================================================")
-        print("Questions: ",test_dict[i]['Question'])
+        print("\nQuestion: ",test_dict[i]['Question'])
         answer = qa_chain.invoke(test_dict[i]['Question'])
         answer = extract_answer(answer)
         results.append({
@@ -164,4 +180,5 @@ if __name__ == "__main__":
     #"meta-llama/Meta-Llama-3.1-8B-Instruct"
     # maywell/TinyWand-kiqu
     # yanolja/EEVE-Korean-Instruct-2.8B-v1.0
+    # MLP-KTLim/llama-3-Korean-Bllossom-8B
     run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct")
