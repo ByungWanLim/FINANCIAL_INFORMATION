@@ -1,36 +1,8 @@
-from langchain_community.document_loaders import CSVLoader
-from langchain_community.vectorstores import FAISS
-from langchain_text_splitters import CharacterTextSplitter
-import os
-from glob import glob
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.chains import RetrievalQA
-from langchain.schema import Document
-import torch
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from langchain_huggingface import HuggingFacePipeline ,HuggingFaceEmbeddings
-
 from langchain.prompts import PromptTemplate
 import pandas as pd
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from langchain_core.prompts import (
-    FewShotPromptTemplate,
-    ChatPromptTemplate,
-    FewShotChatMessagePromptTemplate
-)
-import bitsandbytes as bnb
-import pickle
-from langchain_core.example_selectors import SemanticSimilarityExampleSelector
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    pipeline,
-    BitsAndBytesConfig
-)
-from langchain_community.document_transformers import LongContextReorder
 
 from faiss_module import load_and_vectorize,load_chunks_make_docdb
 from model import setup_llm_pipeline
