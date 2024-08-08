@@ -47,7 +47,7 @@ def make_dict(dir='train.csv'):
 
 def make_fewshot_prompt(fewshot_vectordb, k = 3):
     # Semantic Similarity Example Selector 설정
-    example_prompt = PromptTemplate.from_template("<|start_header_id|>user<|end_header_id|>\n<|begin_of_text|>{Question}<|end_of_text|>\n<|start_header_id|>assistant<|end_header_id|>\n<|begin_of_text|>{Answer}<|end_of_text|>")
+    example_prompt = PromptTemplate.from_template("<|eot_id|><|start_header_id|>user<|end_header_id|>\n{Question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n{Answer}")
     example_selector = SemanticSimilarityExampleSelector(
         vectorstore=fewshot_vectordb,
         k=k,
@@ -125,12 +125,10 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         
         full_template = """
 <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-
-Cutting Knowledge Date: December 2023
 Today Date: 8 Aug 2024
-1,000,000 = 100 만원
+1,000,000 원= 100 만원
 10 백만원 = 10,000,000 원
-
+100 백만원 = 100,000,000 원
 You are the financial expert who helps me with my financial information Q&As.
 You earn 10 points when you answer me and follow the rules and lose 7 points when you don't.
 
@@ -141,13 +139,9 @@ Here are some rules you should follow.
 - Please answer the question in 1-3 sentences.
 
 Please answer like the example below.
-""" +f"{fewshot_str}" + """
-
+""" +f"{fewshot_str}" + """<|eot_id|><|start_header_id|>system<|end_header_id|>
 Given the following contexts about Question:
-{context}
-
-<|eot_id|><|start_header_id|>user<|end_header_id|>
-
+{context}<|eot_id|><|start_header_id|>user<|end_header_id|>
 {input}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 """
         prompt = PromptTemplate.from_template(full_template)
