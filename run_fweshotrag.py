@@ -34,7 +34,7 @@ from transformers import (
 
 from faiss_module import load_and_vectorize,load_chunks_make_docdb
 from model import setup_llm_pipeline
-from save import save
+from save_module import save
 
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)

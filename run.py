@@ -34,75 +34,13 @@ from langchain_community.document_transformers import LongContextReorder
 
 from faiss_module import load_and_vectorize,load_chunks_make_docdb
 from model import setup_llm_pipeline
-from save import save
-from seed import seed_everything
-
+from fewshot_module import make_fewshot_prompt, fewshot_ex
+from save_module import save
+from seed_module import seed_everything
+from utils_module import make_dict, extract_answer, format_docs
 seed_everything(52)
 
-def make_dict(dir='train.csv'):
-    df = pd.read_csv(dir)
-    df.drop('SAMPLE_ID', axis=1, inplace=True)
-    
-    return df.to_dict(orient='records')
-
-def make_fewshot_prompt(fewshot_vectordb, k = 3):
-    # Semantic Similarity Example Selector 설정
-    example_prompt = PromptTemplate.from_template("<|eot_id|><|start_header_id|>user<|end_header_id|>\n{Question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n{Answer}")
-    example_selector = SemanticSimilarityExampleSelector(
-        vectorstore=fewshot_vectordb,
-        k=k,
-    )
-
-    # FewShotPromptTemplate 생성
-    fewshot_prompt = FewShotPromptTemplate(
-        example_selector=example_selector,
-        example_prompt=example_prompt,
-        suffix="Question: {input}",
-        input_variables=["input"],
-    )
-    return fewshot_prompt
-
-def fewshot_ex(fewshot_prompt, buff):
-    ex_qa = fewshot_prompt.invoke({"input": buff['Question']}).to_string()
-    #print(ex_qa)
-    fewshot_list = ex_qa.split('\n\n')[:-1]
-    
-    return '\n\n'.join(fewshot_list)
-
-# def ex_with_context(ex_qa, train_retriever, ):
-#     fewshot_list = ex_qa.split('\n\n')
-#     # print(fewshot_list)
-#     # for i, entry in enumerate(fewshot_list):
-#     #     question = entry.split('\n')[0]
-#     #     question = question.replace('Question: ', '')
-#     #     retrieved_docs = train_retriever.invoke(question)
-#     #     num = "Example {}\n".format(i+1)
-#     #     fewshot_list[i] = num + "<|start_header_id|>context<|end_header_id|>\n<|begin_of_text|>" + entry + '\n\n'
-#     return str(fewshot_list)
-
-def format_docs(docs):
-    """검색된 문서들을 하나의 문자열로 포맷팅"""
-    context = ""
-    for doc in docs:
-        context += doc.page_content
-        context += '\n\n'
-    return context
-
-def extract_answer(response):
-    # AI: 로 시작하는 줄을 찾아 그 이후의 텍스트만 추출
-    lines = response.split('\n')
-    for line in lines:
-        if line.startswith('Answer:'):
-            return line.replace('Answer:', '').strip()
-        if line.startswith('assistant:'):
-            return line.replace('assistant:', '').strip()
-    return response.strip()  # AI: 를 찾지 못한 경우 전체 응답을 정리해서 반환
-
-
-
 def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
-
-    
     # train에도 RAG를 쓸 때 사용
     # train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')
     # train_retriever = train_db.as_retriever(search_type = "mmr",search_kwargs={'k': 2})
