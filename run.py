@@ -37,7 +37,7 @@ from model import setup_llm_pipeline
 from save import save
 from seed import seed_everything
 
-seed_everything(42)
+seed_everything(52)
 
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)
@@ -45,10 +45,9 @@ def make_dict(dir='train.csv'):
     
     return df.to_dict(orient='records')
 
-def make_fewshot_prompt(fewshot_vectordb, k = 10):
+def make_fewshot_prompt(fewshot_vectordb, k = 3):
     # Semantic Similarity Example Selector 설정
     example_prompt = PromptTemplate.from_template("<|start_header_id|>user<|end_header_id|>\n<|begin_of_text|>{Question}<|end_of_text|>\n<|start_header_id|>assistant<|end_header_id|>\n<|begin_of_text|>{Answer}<|end_of_text|>")
-
     example_selector = SemanticSimilarityExampleSelector(
         vectorstore=fewshot_vectordb,
         k=k,
@@ -110,7 +109,7 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     # train_dict = make_dict('train.csv')
     
     test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')
-    test_retriver = test_db.as_retriever(search_type = "mmr",search_kwargs={'k': 3})
+    test_retriver = test_db.as_retriever(search_type = "mmr",search_kwargs={'k': 6})
     test_dict = make_dict('test.csv')
     
     fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
@@ -121,8 +120,8 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     for i in tqdm(range(len(test_dict))):
         
         fewshot_str = fewshot_ex(fewshot_prompt, test_dict[i])
-        #fewshot_str = ex_with_context(fewshot_str, train_retriever)
-        #print(fewshot_str)
+        # fewshot_str = ex_with_context(fewshot_str, train_retriever)
+        # print(fewshot_str)
         
         full_template = """
         <|start_header_id|>system<|end_header_id|>
@@ -130,22 +129,21 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         <|begin_of_text|>
 ##################################################
 You are the financial expert who helps me with my financial information Q&As.
-You earn 10 points when you answer me and follow the rules and lose 12 points when you don't.
-##################################################
-Here's an example that might help your answer format.
-""" +f"{fewshot_str}"+"""
+You earn 10 points when you answer me and follow the rules and lose 7 points when you don't.
+1,000,000 = 100 만원
+10 백만원 = 10,000,000 원
 ##################################################
 Here are some rules you should follow.
-
-Rule 1: You should always refer to the context to answer the question.
-Rule 2: Use 128 words or less in your answer, and summarize in one sentence if possible.
-Rule 3. Use plain text format for your answer.
-Rule 4. Answers must be written in Korean.
-
+- Please use contexts to answer the question.
+- Please your answers should be concise.
+- Please answers must be written in Korean.
+- Please answer the question in 1-3 sentences.
+- Your answer must include the key words of the question.
 ##################################################
-<|end_of_text|>\n\n
-""" +f"{None}" + """<|begin_of_text|>
-Given the following information about Question
+\n\n
+Please answer like the example below.
+""" +f"{fewshot_str}" + """
+Given the following contexts about Question
 <|end_of_text|>
 <|start_header_id|>context<|end_header_id|>
 <|begin_of_text|>{context}<|end_of_text|>
@@ -165,7 +163,7 @@ Given the following information about Question
         | StrOutputParser()
         )
         # print("================================================")
-        print("__Question__\n",test_dict[i]['Question'])
+        print("\nQuestion: ",test_dict[i]['Question'])
         answer = qa_chain.invoke(test_dict[i]['Question'])
         answer = extract_answer(answer)
         results.append({
@@ -173,7 +171,7 @@ Given the following information about Question
             "Answer": answer,
             "Source": test_dict[i]['Source']
             })
-        print("__Answer__\n",results[-1]['Answer'])
+        print("Answer: ",results[-1]['Answer'])
         #print(results[-1]['Source'])
     save(results)
     
@@ -182,4 +180,5 @@ if __name__ == "__main__":
     #"meta-llama/Meta-Llama-3.1-8B-Instruct"
     # maywell/TinyWand-kiqu
     # yanolja/EEVE-Korean-Instruct-2.8B-v1.0
+    # MLP-KTLim/llama-3-Korean-Bllossom-8B
     run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct")
