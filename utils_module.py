@@ -18,6 +18,7 @@ def extract_answer(response):
     # AI: 로 시작하는 줄을 찾아 그 이후의 텍스트만 추출
     lines = response.split('\n')
     for line in lines:
+        line = line.replace('**', '')
         if line.startswith('Answer:'):
             return line.replace('Answer:', '').strip()
         if line.startswith('assistant:'):
