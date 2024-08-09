@@ -1,6 +1,4 @@
 
-/test_source/
-/train_source/
 sample_submission_source/
 /env.yaml/
 fewshot_faiss_db/
