@@ -12,7 +12,7 @@ from seed_module import seed_everything
 from utils_module import make_dict, extract_answer, format_docs
 seed_everything(52)
 
-def run(train_retriever,test_retriver,fewshot_db, dataset ,llm):
+def run(train_retriever,test_retriver,fewshot_db, dataset ,llm, varbose = False):
     # reordering = LongContextReorder()
     results =[]
     for i in tqdm(range(len(dataset))):
@@ -53,7 +53,8 @@ Given the following contexts about Question:
         | StrOutputParser()
         )
         # print("================================================")
-        print("\nQuestion: ",dataset[i]['Question'])
+        if varbose:
+            print("\nQuestion: ",dataset[i]['Question'])
         answer = qa_chain.invoke(dataset[i]['Question'])
         answer = extract_answer(answer)
         results.append({
@@ -61,7 +62,8 @@ Given the following contexts about Question:
             "Answer": answer,
             "Source": dataset[i]['Source']
             })
-        print("Answer: ",results[-1]['Answer'])
+        if varbose:
+            print("Answer: ",results[-1]['Answer'])
         #print(results[-1]['Source'])
     return results
     

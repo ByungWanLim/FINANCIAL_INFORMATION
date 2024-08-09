@@ -49,12 +49,12 @@ def load_and_vectorize(csv_path, db_path):
     to_vectorize = ["\n\n".join(normalize_string(value) for value in example.values()) for example in trainset]
     
     # 벡터화 및 FAISS DB 생성
-    fewshow_vectordb = FAISS.from_texts(to_vectorize, embedding=get_embedding(), metadatas=trainset)
+    fewshot_vectordb = FAISS.from_texts(to_vectorize, embedding=get_embedding(), metadatas=trainset)
     
     # FAISS DB 저장
-    save_faiss_db(fewshow_vectordb, db_path)
+    save_faiss_db(fewshot_vectordb, db_path)
     
-    return fewshow_vectordb
+    return fewshot_vectordb
 
 def save_faiss_db(db, db_path):
     db.save_local(db_path)
@@ -100,3 +100,33 @@ def load_chunks_make_docdb(pdf_directory, db_path):
     
     return db
 
+def make_db(df):
+    documents = []
+    pdf_files = df['Source_path'].unique()
+    print("Loading PDF files from:", len(pdf_files))
+    for pdf_file in pdf_files:
+        loader = PyPDFLoader(pdf_file)
+        pdf_documents = loader.load()
+        documents.extend(pdf_documents)
+    # 유니코드 정규화
+    for doc in documents:
+        doc.page_content = normalize_string(doc.page_content)
+    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=32)
+    chunks = chunk_splitter.split_documents(documents)
+    print("Done.", len(chunks), "chunks")
+    
+    print("Creating FAISS DB")
+    # FAISS DB 생성 및 저장
+    db = FAISS.from_documents(chunks, embedding=get_embedding())
+    print("Done.")
+    return db
+
+def make_fewshot_db(df):
+    df = df.drop('SAMPLE_ID', axis=1)
+    df = df.to_dict(orient='records')
+    # 벡터화할 텍스트 생성 및 유니코드 정규화
+    to_vectorize = ["\n\n".join(normalize_string(value) for value in example.values()) for example in df]
+    
+    # 벡터화 및 FAISS DB 생성
+    fewshot_vectordb = FAISS.from_texts(to_vectorize, embedding=get_embedding(), metadatas=df)
+    return fewshot_vectordb

@@ -1,8 +1,6 @@
 import pandas as pd
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)
-    df.drop('SAMPLE_ID', axis=1, inplace=True)
-    
     return df.to_dict(orient='records')
 
 def format_docs(docs):
