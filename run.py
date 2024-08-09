@@ -18,7 +18,7 @@ def run(train_retriever,test_retriver,fewshot_db, dataset ,llm):
     for i in tqdm(range(len(dataset))):
         # train_retriever가 있으면 context를 포함한 fewshot prompt 생성
         # 없으면 fewshot prompt만 생성
-        fewshot_str = fewshot_ex(fewshot_db, test_dict[i],train_retriever= train_retriever, fewshot_num = 3)
+        fewshot_str = fewshot_ex(fewshot_db, dataset[i],train_retriever= train_retriever, fewshot_num = 3)
         #print(fewshot_str)
         full_template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 Today Date: 8 Aug 2024
@@ -53,13 +53,13 @@ Given the following contexts about Question:
         | StrOutputParser()
         )
         # print("================================================")
-        print("\nQuestion: ",test_dict[i]['Question'])
-        answer = qa_chain.invoke(test_dict[i]['Question'])
+        print("\nQuestion: ",dataset[i]['Question'])
+        answer = qa_chain.invoke(dataset[i]['Question'])
         answer = extract_answer(answer)
         results.append({
-            "Question": test_dict[i]['Question'],
+            "Question": dataset[i]['Question'],
             "Answer": answer,
-            "Source": test_dict[i]['Source']
+            "Source": dataset[i]['Source']
             })
         print("Answer: ",results[-1]['Answer'])
         #print(results[-1]['Source'])
