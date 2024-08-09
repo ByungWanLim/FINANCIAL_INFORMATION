@@ -63,7 +63,8 @@ Given the following contexts about Question:
             })
         print("Answer: ",results[-1]['Answer'])
         #print(results[-1]['Source'])
-    save(results)
+    return results
+    
     
 if __name__ == "__main__":
     # EleutherAI/polyglot-ko-1.3b
@@ -85,8 +86,9 @@ if __name__ == "__main__":
     model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     llm = setup_llm_pipeline(model_id)
     
-    run(train_retriever,
+    results = run(train_retriever,
         test_retriver,
         fewshot_db, 
         test_dict ,
         llm)
+    save(results)
