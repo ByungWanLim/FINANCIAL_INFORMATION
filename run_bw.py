@@ -35,7 +35,7 @@ from langchain_community.document_transformers import LongContextReorder
 from faiss_module import load_and_vectorize,load_chunks_make_docdb
 from model_bw2 import setup_llm_pipeline
 from save_bw import save
-from seed import seed_everything
+from seed_module import seed_everything
 
 seed_everything(42)
 
