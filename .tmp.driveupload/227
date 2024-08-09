@@ -1,0 +1,653 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "c:\\ProgramData\\anaconda3\\envs\\llm_project\\Lib\\site-packages\\tqdm\\auto.py:21: TqdmWarning: IProgress not found. Please update jupyter and ipywidgets. See https://ipywidgets.readthedocs.io/en/stable/user_install.html\n",
+      "  from .autonotebook import tqdm as notebook_tqdm\n"
+     ]
+    }
+   ],
+   "source": [
+    "from langchain_community.document_loaders import CSVLoader\n",
+    "from langchain_community.vectorstores import FAISS\n",
+    "from langchain_text_splitters import CharacterTextSplitter\n",
+    "import os\n",
+    "from glob import glob\n",
+    "from langchain_community.document_loaders import PyPDFLoader\n",
+    "from langchain.text_splitter import RecursiveCharacterTextSplitter\n",
+    "from langchain.chains import RetrievalQA\n",
+    "from langchain.schema import Document\n",
+    "import torch\n",
+    "from tqdm import tqdm\n",
+    "from transformers import AutoTokenizer, AutoModelForCausalLM\n",
+    "from langchain_huggingface import HuggingFacePipeline ,HuggingFaceEmbeddings\n",
+    "\n",
+    "from langchain.prompts import PromptTemplate\n",
+    "import pandas as pd\n",
+    "from langchain_core.output_parsers import StrOutputParser\n",
+    "from langchain_core.runnables import RunnablePassthrough\n",
+    "from langchain_core.prompts import (\n",
+    "    FewShotPromptTemplate,\n",
+    "    ChatPromptTemplate,\n",
+    "    FewShotChatMessagePromptTemplate\n",
+    ")\n",
+    "import bitsandbytes as bnb\n",
+    "import pickle\n",
+    "from langchain_core.example_selectors import SemanticSimilarityExampleSelector\n",
+    "from transformers import (\n",
+    "    AutoTokenizer,\n",
+    "    AutoModelForCausalLM,\n",
+    "    pipeline,\n",
+    "    BitsAndBytesConfig\n",
+    ")\n",
+    "from langchain_community.document_transformers import LongContextReorder\n",
+    "\n",
+    "from faiss_module import load_and_vectorize,load_chunks_make_docdb\n",
+    "from model import setup_llm_pipeline\n",
+    "from save import save\n",
+    "from seed import seed_everything"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Loading FAISS DB from: ./fewshot_faiss_db\n",
+      "Loading FAISS DB from: ./train_faiss_db\n",
+      "Loading FAISS DB from: ./test_faiss_db\n"
+     ]
+    }
+   ],
+   "source": [
+    "def make_dict(dir='train.csv'):\n",
+    "    df = pd.read_csv(dir)\n",
+    "    df.drop('SAMPLE_ID', axis=1, inplace=True)\n",
+    "    \n",
+    "    return df.to_dict(orient='records')\n",
+    "\n",
+    "def make_fewshot_prompt(fewshot_vectordb, k = 10):\n",
+    "    # Semantic Similarity Example Selector 설정\n",
+    "    example_prompt = PromptTemplate.from_template(\"<|start_header_id|>user<|end_header_id|>\\n<|begin_of_text|>{Question}<|end_of_text|>\\n<|start_header_id|>assistant<|end_header_id|>\\n<|begin_of_text|>{Answer}<|end_of_text|>\")\n",
+    "    example_selector = SemanticSimilarityExampleSelector(\n",
+    "        vectorstore=fewshot_vectordb,\n",
+    "        k=k,\n",
+    "    )\n",
+    "\n",
+    "    # FewShotPromptTemplate 생성\n",
+    "    fewshot_prompt = FewShotPromptTemplate(\n",
+    "        example_selector=example_selector,\n",
+    "        example_prompt=example_prompt,\n",
+    "        suffix=\"Question: {input}\",\n",
+    "        input_variables=[\"input\"],\n",
+    "    )\n",
+    "    return fewshot_prompt\n",
+    "\n",
+    "def fewshot_ex(fewshot_prompt, buff):\n",
+    "    ex_qa = fewshot_prompt.invoke({\"input\": buff['Question']}).to_string()\n",
+    "    #print(ex_qa)\n",
+    "    fewshot_list = ex_qa.split('\\n\\n')[:-1]\n",
+    "    \n",
+    "    return '\\n\\n'.join(fewshot_list)\n",
+    "def format_docs(docs):\n",
+    "    \"\"\"검색된 문서들을 하나의 문자열로 포맷팅\"\"\"\n",
+    "    context = \"\"\n",
+    "    for doc in docs:\n",
+    "        context += doc.page_content\n",
+    "        context += '\\n\\n'\n",
+    "    return context\n",
+    "\n",
+    "def extract_answer(response):\n",
+    "    # AI: 로 시작하는 줄을 찾아 그 이후의 텍스트만 추출\n",
+    "    lines = response.split('\\n')\n",
+    "    for line in lines:\n",
+    "        if line.startswith('Answer:'):\n",
+    "            return line.replace('Answer:', '').strip()\n",
+    "        if line.startswith('assistant:'):\n",
+    "            return line.replace('assistant:', '').strip()\n",
+    "    return response.strip()  # AI: 를 찾지 못한 경우 전체 응답을 정리해서 반환\n",
+    "\n",
+    "fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')\n",
+    "fewshot_prompt = make_fewshot_prompt(fewshot_db)\n",
+    "\n",
+    "train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')\n",
+    "train_retriever = train_db.as_retriever(search_type = \"mmr\",search_kwargs={'k': 1})\n",
+    "\n",
+    "test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')\n",
+    "test_retriver = test_db.as_retriever(search_type = \"mmr\",search_kwargs={'k': 3})\n",
+    "\n",
+    "train_dict = make_dict('train.csv')\n",
+    "test_dict = make_dict('test.csv')\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Loading FAISS DB from: ./test_faiss_db\n",
+      "Loading FAISS DB from: ./fewshot_faiss_db\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "Loading checkpoint shards: 100%|██████████| 4/4 [00:19<00:00,  4.76s/it]\n",
+      "  0%|          | 0/98 [00:00<?, ?it/s]c:\\ProgramData\\anaconda3\\envs\\llm_project\\Lib\\site-packages\\transformers\\models\\bert\\modeling_bert.py:439: UserWarning: 1Torch was not compiled with flash attention. (Triggered internally at ..\\aten\\src\\ATen\\native\\transformers\\cuda\\sdp_utils.cpp:455.)\n",
+      "  attn_output = torch.nn.functional.scaled_dot_product_attention(\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Question:  2022년 혁신창업사업화자금(융자)의 예산은 얼마인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  1%|          | 1/98 [00:04<06:29,  4.02s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  2022년 혁신창업사업화자금(융자)의 예산은 2,300,000 만원입니다.\n",
+      "\n",
+      "Question:  중소벤처기업부의 혁신창업사업화자금(융자) 사업목적은 무엇인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  2%|▏         | 2/98 [00:05<03:48,  2.38s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  창업을 활성화하고 고용창출 도모\n",
+      "\n",
+      "Question:  중소벤처기업부의 혁신창업사업화자금(융자) 사업근거는 어떤 법률에 근거하고 있나요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  3%|▎         | 3/98 [00:09<04:54,  3.10s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  중소벤처기업부의 혁신창업사업화자금(융자) 사업근거는 중소기업진흥에 관한 법률 제66조, 제67조, 제74조, 중소기업창업지원법 제35조에 근거하고 있습니다.\n",
+      "\n",
+      "Question:  2010년에 신규 지원된 혁신창업사업화자금은 무엇인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  4%|▍         | 4/98 [00:11<04:17,  2.74s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  2010년에는 재창업자금 (실패 경영인에 대한 재기지원 )이 신규 지원되었습니다.\n",
+      "\n",
+      "Question:  혁신창업사업화자금 중 2020년에 신규 지원된 자금은 무엇인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  5%|▌         | 5/98 [00:13<03:39,  2.36s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  2020년 혁신창업사업화자금은 1,000만 원입니다.\n",
+      "\n",
+      "Question:  재창업자금이 재도약지원자금으로 이관된 연도는 언제인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  6%|▌         | 6/98 [00:13<02:44,  1.79s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  2015\n",
+      "\n",
+      "Question:  창업기반지원과 신청 대상이 중복인 자금이 어떤 것이며, 이 자금이 폐지된 연도는 언제인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  7%|▋         | 7/98 [00:14<02:23,  1.57s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  일자리창출촉진자금\n",
+      "\n",
+      "Question:  혁신창업사업화자금(융자) 사업을 시행하는 주체는 누구인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  8%|▊         | 8/98 [00:15<02:01,  1.35s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  중소기업정책실\n",
+      "\n",
+      "Question:  혁신창업사업화자금(융자) 사업 집행절차는 어떻게 되나요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "  9%|▉         | 9/98 [00:25<05:59,  4.04s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  중소기업진흥공단에서 혁신창업사업화자금(융자)의 집행절차는 다음과 같습니다.\n",
+      "\n",
+      "1. 사업계획 수립/공고: 중기부, 중진공에서 사전 상담 및 신청, 접수합니다.\n",
+      "2. 서류 및 현장실사: 중진공에서 중소기업에게 서류를 제출하고 현장실사를 받습니다.\n",
+      "3. 융자 실행: 중진공, 은행에서 중소기업에게 융자를 제공합니다.\n",
+      "4. 지원 결정 통보: 중진공에서 중소기업에게 지원결정을 통보합니다.\n",
+      "5. 평가 및 승인: 중진공에서 중소기업에게 평가와 승인을 합니다.\n",
+      "\n",
+      "Question:  부모급여 지원 사업의 목적은 무엇인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 10%|█         | 10/98 [00:27<04:57,  3.38s/it]You seem to be using the pipelines sequentially on GPU. In order to maximize efficiency please use a dataset\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  중요한 아동발달의 특성에 따라 영아기 돌봄을 위한 부모급여를 지원하기 위하여\n",
+      "\n",
+      "Question:  부모급여(영아수당)의 2024년 확정된 예산은 몇백만원인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 11%|█         | 11/98 [00:29<04:23,  3.03s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  2024년 부모급여(영아수당)의 확정된 예산은 2,888,694백만원입니다.\n",
+      "\n",
+      "Question:  부모급여 지원 사업은 어떤 법령상 근거를 갖고 추진되고 있나요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 12%|█▏        | 12/98 [00:30<03:28,  2.42s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  아동수당법 제4조 제5항\n",
+      "\n",
+      "Question:  영아수당 도입에 대한 추진경위는 어떻게 되나요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 13%|█▎        | 13/98 [00:32<03:01,  2.14s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  영아수당 도입은 '20.12.'에 시작되었습니다.\n",
+      "\n",
+      "Question:  부모급여 지원사업은 언제부터 시행되었나요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 14%|█▍        | 14/98 [00:33<02:21,  1.69s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  '23년\n",
+      "\n",
+      "Question:  보건복지부의 부모급여(영아수당) 지원 사업시행방법은 무엇이며, 사업 수혜자는 누구인가?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 15%|█▌        | 15/98 [00:36<03:03,  2.21s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  부모급여(영아수당)의 지원 사업시행 방법은 다음과 같습니다.\n",
+      "\n",
+      "1. 신청자 명단 검토 후 대상자 선정 및 확정통보\n",
+      "2. 등유 바우처 발급 통지 및 안내\n",
+      "3. 카드 신청 및 발급\n",
+      "\n",
+      "Question:  노인장기요양보험 사업 운영에 대한 목적은 무엇인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 16%|█▋        | 16/98 [00:41<04:03,  2.97s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  노인장기요양보험 사업 운영의 목적은 고령이나 노인 성 질병으로 일상 생활을 혼자서 수행하기 어려운 노인 등에게 신체 또는 가사 활동 등을 제공하는 노인장기요양보험에 국고 지원을 함으로써 노인들의 삶의 질을 향상시키고 건강을 유지토록 하는 것입니다.\n",
+      "\n",
+      "Question:  노인장기요양보험 운영지원에 대한 사업 내용을 설명해줘.\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 17%|█▋        | 17/98 [00:46<05:01,  3.72s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  노인장기요양보험 운영지원은 노인장기요양보험법 제58조에 따라 국가가 국민건강보험공단에 지원하는 법정지원금입니다. 이 금액은 장기요양보험료 예상수입액의 20% 상당으로, 공무원과 사립학교 교원의 장기요양보험료 국가부담금 및 차상위계층의 장기요양보험료를 지원합니다.\n",
+      "\n",
+      "Question:  국고지원을 받는 기타 의료급여수급권자는 누구인가요?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 18%|█▊        | 18/98 [00:48<04:11,  3.15s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  의료급여법 제3조 제1항 제1호에 따른 의료급여를 받는 사람입니다.\n",
+      "\n",
+      "Question:  장기요양보험가입자 및 피부양자의 자격취득과 관련하여 어떤 법률을 준용해야 하는가?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 19%|█▉        | 19/98 [00:49<03:21,  2.55s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  노인장기요양보험법 제11조\n",
+      "\n",
+      "Question:  노인장기요양보험법이 언제 제정되고 공포되었나?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 20%|██        | 20/98 [00:50<02:38,  2.03s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  '07.4월\n",
+      "\n",
+      "Question:  장기요양인정점수 완화가 언제 이루어졌으며, 어떤 변화가 있었나?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 21%|██▏       | 21/98 [00:55<03:50,  3.00s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  장기요양보험의 인정점수 완화는 두 번 이루어졌습니다.\n",
+      "\n",
+      "첫 번째로, '12.7월'에 3등급 인정점수를 55-75점에서 53-75점으로 완화했습니다.\n",
+      "\n",
+      "두 번째로, '13.7월'에 다시 3등급 인정점수를 53-75점에서 51-75점으로 완화했습니다.\n",
+      "\n",
+      "Question:  장기요양기관 지정갱신제의 법적 근거가 언제 마련되었는가?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 22%|██▏       | 22/98 [00:56<02:56,  2.33s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  '18.12월\n",
+      "\n",
+      "Question:  22.10월에 요양보호사 1명당 시설수급자 인력배치기준이 개선된 내용은 무엇인가?\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      " 23%|██▎       | 23/98 [00:59<03:08,  2.52s/it]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Answer:  요양보호사 인력배치기준이 개선된 내용은 요양보호사 1명당 시설수급자 2.5명에서 2.3명으로 변경되었다.\n",
+      "\n",
+      "Question:  에너지 바우처 제도의 주요 내용은 무엇인가요?\n"
+     ]
+    }
+   ],
+   "source": [
+    "def run(model_id = \"meta-llama/Meta-Llama-3.1-8B-Instruct\"):\n",
+    "\n",
+    "    \n",
+    "    # train에도 RAG를 쓸 때 사용\n",
+    "    # train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')\n",
+    "    # train_retriever = train_db.as_retriever(search_type = \"mmr\",search_kwargs={'k': 2})\n",
+    "    # train_dict = make_dict('train.csv')\n",
+    "    \n",
+    "    test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')\n",
+    "    test_retriver = test_db.as_retriever(search_type = \"mmr\",search_kwargs={'k': 5})\n",
+    "    test_dict = make_dict('test.csv')\n",
+    "    \n",
+    "    fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')\n",
+    "    fewshot_prompt = make_fewshot_prompt(fewshot_db, k=10)\n",
+    "    llm = setup_llm_pipeline(model_id)\n",
+    "    # reordering = LongContextReorder()\n",
+    "    results =[]\n",
+    "    for i in tqdm(range(len(test_dict))):\n",
+    "        \n",
+    "        # fewshot_str = fewshot_ex(fewshot_prompt, test_dict[i])\n",
+    "        # fewshot_str = ex_with_context(fewshot_str, train_retriever)\n",
+    "        # print(fewshot_str)\n",
+    "        \n",
+    "        full_template = \"\"\"\n",
+    "        <|start_header_id|>system<|end_header_id|>\n",
+    "        \n",
+    "        <|begin_of_text|>\n",
+    "##################################################\n",
+    "You are the financial expert who helps me with my financial information Q&As.\n",
+    "You earn 10 points when you answer me and follow the rules and lose 7 points when you don't.\n",
+    "1,000,000 = 100 만원\n",
+    "10 백만원 = 10,000,000 원\n",
+    "##################################################\n",
+    "Here are some rules you should follow.\n",
+    "- Please use contexts to answer the question.\n",
+    "- Please use 128 words or less in your answer.\n",
+    "- Please your answers should be concise.\n",
+    "- Please answers must be written in Korean.\n",
+    "- Please answer the question in 1-3 sentences.\n",
+    "- Your answer must include the key words of the question.\n",
+    "##################################################\n",
+    "<|end_of_text|>\\n\\n\n",
+    "\"\"\" +f\"{None}\" + \"\"\"<|begin_of_text|>\n",
+    "Given the following contexts about Question\n",
+    "<|end_of_text|>\n",
+    "<|start_header_id|>context<|end_header_id|>\n",
+    "<|begin_of_text|>{context}<|end_of_text|>\n",
+    "\"\"\" +f\"{None}\" + \"\"\"\n",
+    "<|start_header_id|>user<|end_header_id|>\n",
+    "<|begin_of_text|>{input}<|end_of_text|>\n",
+    "<|start_header_id|>assistant<|end_header_id|>\n",
+    "\"\"\"\n",
+    "        prompt = PromptTemplate.from_template(full_template)\n",
+    "        qa_chain = (\n",
+    "        {\n",
+    "            \"context\": test_retriver | format_docs,\n",
+    "            \"input\": RunnablePassthrough(),\n",
+    "        }\n",
+    "        | prompt\n",
+    "        | llm\n",
+    "        | StrOutputParser()\n",
+    "        )\n",
+    "        # print(\"================================================\")\n",
+    "        print(\"\\nQuestion: \",test_dict[i]['Question'])\n",
+    "        answer = qa_chain.invoke(test_dict[i]['Question'])\n",
+    "        answer = extract_answer(answer)\n",
+    "        results.append({\n",
+    "            \"Question\": test_dict[i]['Question'],\n",
+    "            \"Answer\": answer,\n",
+    "            \"Source\": test_dict[i]['Source']\n",
+    "            })\n",
+    "        print(\"Answer: \",results[-1]['Answer'])\n",
+    "        #print(results[-1]['Source'])\n",
+    "    save(results)\n",
+    "    \n",
+    "if __name__ == \"__main__\":\n",
+    "    # EleutherAI/polyglot-ko-1.3b\n",
+    "    #\"meta-llama/Meta-Llama-3.1-8B-Instruct\"\n",
+    "    # maywell/TinyWand-kiqu\n",
+    "    # yanolja/EEVE-Korean-Instruct-2.8B-v1.0\n",
+    "    run(model_id = \"meta-llama/Meta-Llama-3.1-8B-Instruct\")"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "llm_project",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.4"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
