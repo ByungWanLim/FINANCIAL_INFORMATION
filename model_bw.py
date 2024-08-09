@@ -52,7 +52,7 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         return_full_text=False,
         eos_token_id=terminators,
         max_new_tokens=512,
-        repetition_penalty=1.2,
+        repetition_penalty=1.1,
         pad_token_id=pad_token_id  # 패딩 토큰 ID 설정
     )
 
