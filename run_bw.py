@@ -1,153 +1,61 @@
-from langchain_community.document_loaders import CSVLoader
-from langchain_community.vectorstores import FAISS
-from langchain_text_splitters import CharacterTextSplitter
-import os
-from glob import glob
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.chains import RetrievalQA
-from langchain.schema import Document
-import torch
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from langchain_huggingface import HuggingFacePipeline ,HuggingFaceEmbeddings
-
 from langchain.prompts import PromptTemplate
 import pandas as pd
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from langchain_core.prompts import (
-    FewShotPromptTemplate,
-    ChatPromptTemplate,
-    FewShotChatMessagePromptTemplate
-)
-import bitsandbytes as bnb
-import pickle
-from langchain_core.example_selectors import SemanticSimilarityExampleSelector
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    pipeline,
-    BitsAndBytesConfig
-)
-from langchain_community.document_transformers import LongContextReorder
 
 from faiss_module import load_and_vectorize,load_chunks_make_docdb
-from model_bw2 import setup_llm_pipeline
-from save_bw import save
+from model_bw import setup_llm_pipeline
+from fewshot_module import fewshot_ex
+from save_module_bw import save
 from seed_module import seed_everything
-
-seed_everything(42)
-
-def make_dict(dir='train.csv'):
-    df = pd.read_csv(dir)
-    df.drop('SAMPLE_ID', axis=1, inplace=True)
-    
-    return df.to_dict(orient='records')
-
-def make_fewshot_prompt(fewshot_vectordb, k = 3):
-    # Semantic Similarity Example Selector 설정
-    example_prompt = PromptTemplate.from_template("<|start_header_id|>user<|end_header_id|>: {Question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>: <|begin_of_text|>{Answer}<|end_of_text|>")
-
-    example_selector = SemanticSimilarityExampleSelector(
-        vectorstore=fewshot_vectordb,
-        k=k,
-    )
-
-    # FewShotPromptTemplate 생성
-    fewshot_prompt = FewShotPromptTemplate(
-        example_selector=example_selector,
-        example_prompt=example_prompt,
-        suffix="Question: {input}",
-        input_variables=["input"],
-    )
-    return fewshot_prompt
-
-def make_fewshot_string(fewshot_prompt, train_retriever, buff):
-    ex_qa = fewshot_prompt.invoke({"input": buff['Question']}).to_string()
-    fewshot_list = ex_qa.split('\n\n')[:-1]
-    for i, entry in enumerate(fewshot_list):
-        question = entry.split('\n')[0]
-        question = question.replace('Question: ', '')
-        retrieved_docs = train_retriever.invoke(question)
-        num = "Example {}\n".format(i+1)
-        fewshot_list[i] = num + "context: " + retrieved_docs[0].page_content + entry + '\n\n'
-    return str(fewshot_list)
-
-def format_docs(docs):
-    """검색된 문서들을 하나의 문자열로 포맷팅"""
-    context = ""
-    for doc in docs:
-        context += doc.page_content
-        context += '\n\n'
-    return context
-
-def extract_answer(response):
-    # AI: 로 시작하는 줄을 찾아 그 이후의 텍스트만 추출
-    lines = response.split('\n')
-    for line in lines:
-        if line.startswith('Answer:'):
-            return line.replace('Answer:', '').strip()
-        if line.startswith('assistant:'):
-            return line.replace('assistant:', '').strip()
-    return response.strip()  # AI: 를 찾지 못한 경우 전체 응답을 정리해서 반환
-
-
+from utils_module import make_dict, extract_answer, format_docs
+seed_everything(52)
 
 def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
-    fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
-    fewshot_prompt = make_fewshot_prompt(fewshot_db)
-    
+    # train에도 RAG를 쓸 때 사용
     train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')
-    train_retriever = train_db.as_retriever(search_type = "mmr",search_kwargs={'k': 1})
-    
+    train_retriever = train_db.as_retriever(search_kwargs={'k': 1})
+    # train_dict = make_dict('train.csv')
+
     test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')
-    test_retriver = test_db.as_retriever(search_type = "mmr",search_kwargs={'k': 3})
-    
-    train_dict = make_dict('train.csv')
+    test_retriver = test_db.as_retriever(search_kwargs={'k': 3})
     test_dict = make_dict('test.csv')
-    
+
+    fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
+
     llm = setup_llm_pipeline(model_id)
     # reordering = LongContextReorder()
     results =[]
-    
     for i in tqdm(range(len(test_dict))):
-        
-        if i % 30 == 0:
-            print("Clearing cache")
-            torch.cuda.empty_cache()
+        # train_retriever가 있으면 context를 포함한 fewshot prompt 생성
+        # 없으면 fewshot prompt만 생성
+        fewshot_str = fewshot_ex(fewshot_db, test_dict[i],train_retriever= train_retriever, fewshot_num = 7)
+        #print(fewshot_str)
 
-        fewshot_str = make_fewshot_string(fewshot_prompt, train_retriever, test_dict[i])
-        # print(fewshot_str)
-        
-        full_template = """
-Meet Persona, a top financial expert working at the Korea Financial Intelligence Service. 
-Persona's main goal is to share valuable insights with the general public while co-workers.
-Remember, you can earn 17 points on your HR score for every accurate answer you provide.
+        full_template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+Today Date: 8 Aug 2024
+1,000,000 원= 100 만원
+10 백만원 = 10,000,000 원
+100 백만원 = 100,000,000 원
+You are the financial expert who helps me with my financial information Q&As.
+You earn 10 points when you answer me and follow the rules and lose 7 points when you don't.
 
-Here are some rules you should follow. If you break any of these rules, you will lose points.:
-Key Rules:
-Accuracy: Provide accurate information.
-Conciseness: Keep your answers brief and to the point.
-Relevance: Ensure your response is relevant to the question.
-Korean: Respond in Korean.
-Self-retrospective: self-retrospective your answer.
-No repeat: Never repeat the same words in your answer.
-Optional Rules for Enhancement:
-Diversity: Try to include a variety of information in your responses.
-Clarity: Make sure your answers are clear and easy to understand.
-Here are some similar contextualized question and answer examples you can reference.:
+Here are some rules you should follow.
+- Please use contexts to answer the question.
+- Please your answers should be concise.
+- Please answers must be written in Korean.
+- Please answer the question in 1-3 sentences.
+= Please do not repeat the question in your answers.
+- Please reflect on your response and make them accurate and concise.
 
-"""+f"""
-{fewshot_str}
-"""+"""
-Great! Here is the question you need to answer. Remember to follow Informations and the rules above.
-
-context: {context}
-
-user: {input}
-
-assistant:
+Please answer like the example below.<|eot_id|>
+""" +f"{fewshot_str}" + """<|start_header_id|>system<|end_header_id|>
+Now Do it for me.
+Given the following contexts about Question:
+{context}<|start_header_id|>user<|end_header_id|>
+{input}<|eot_id|>
+<|start_header_id|>assistant<|end_header_id|>\n\n
 """
         prompt = PromptTemplate.from_template(full_template)
         qa_chain = (
@@ -160,7 +68,7 @@ assistant:
         | StrOutputParser()
         )
         # print("================================================")
-        print("Questions: ",test_dict[i]['Question'])
+        print("\nQuestion: ",test_dict[i]['Question'])
         answer = qa_chain.invoke(test_dict[i]['Question'])
         answer = extract_answer(answer)
         results.append({
@@ -170,14 +78,12 @@ assistant:
             })
         print("Answer: ",results[-1]['Answer'])
         #print(results[-1]['Source'])
-    
     save(results)
 
-    
-    
 if __name__ == "__main__":
     # EleutherAI/polyglot-ko-1.3b
     #"meta-llama/Meta-Llama-3.1-8B-Instruct"
     # maywell/TinyWand-kiqu
     # yanolja/EEVE-Korean-Instruct-2.8B-v1.0
+    # MLP-KTLim/llama-3-Korean-Bllossom-8B
     run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct")
