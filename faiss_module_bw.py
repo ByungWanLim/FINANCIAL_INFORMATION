@@ -21,7 +21,6 @@ import pickle
 from langchain_core.example_selectors import SemanticSimilarityExampleSelector
 import unicodedata
 from langchain.retrievers.multi_query import MultiQueryRetriever
-from langchain.chat_models import ChatOpenAI  # 또는 다른 적절한 LLM
 
 def create_multi_query_retriever(db, llm, k=3):
     retriever = MultiQueryRetriever.from_llm(
