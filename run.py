@@ -12,27 +12,14 @@ from seed_module import seed_everything
 from utils_module import make_dict, extract_answer, format_docs
 seed_everything(52)
 
-def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
-    # train에도 RAG를 쓸 때 사용
-    train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')
-    train_retriever = train_db.as_retriever(search_kwargs={'k': 1})
-    # train_dict = make_dict('train.csv')
-    
-    test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')
-    test_retriver = test_db.as_retriever(search_kwargs={'k': 3})
-    test_dict = make_dict('test.csv')
-    
-    fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
-    
-    llm = setup_llm_pipeline(model_id)
+def run(train_retriever,test_retriver,fewshot_db, dataset ,llm, varbose = False):
     # reordering = LongContextReorder()
     results =[]
-    for i in tqdm(range(len(test_dict))):
+    for i in tqdm(range(len(dataset))):
         # train_retriever가 있으면 context를 포함한 fewshot prompt 생성
         # 없으면 fewshot prompt만 생성
-        fewshot_str = fewshot_ex(fewshot_db, test_dict[i],train_retriever= train_retriever, fewshot_num = 3)
+        fewshot_str = fewshot_ex(fewshot_db, dataset[i],train_retriever= train_retriever, fewshot_num = 3)
         #print(fewshot_str)
-        
         full_template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 Today Date: 8 Aug 2024
 1,000,000 원= 100 만원
@@ -66,17 +53,20 @@ Given the following contexts about Question:
         | StrOutputParser()
         )
         # print("================================================")
-        print("\nQuestion: ",test_dict[i]['Question'])
-        answer = qa_chain.invoke(test_dict[i]['Question'])
+        if varbose:
+            print("\nQuestion: ",dataset[i]['Question'])
+        answer = qa_chain.invoke(dataset[i]['Question'])
         answer = extract_answer(answer)
         results.append({
-            "Question": test_dict[i]['Question'],
+            "Question": dataset[i]['Question'],
             "Answer": answer,
-            "Source": test_dict[i]['Source']
+            "Source": dataset[i]['Source']
             })
-        print("Answer: ",results[-1]['Answer'])
+        if varbose:
+            print("Answer: ",results[-1]['Answer'])
         #print(results[-1]['Source'])
-    save(results)
+    return results
+    
     
 if __name__ == "__main__":
     # EleutherAI/polyglot-ko-1.3b
@@ -84,4 +74,23 @@ if __name__ == "__main__":
     # maywell/TinyWand-kiqu
     # yanolja/EEVE-Korean-Instruct-2.8B-v1.0
     # MLP-KTLim/llama-3-Korean-Bllossom-8B
-    run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct")
+    
+    # train에도 RAG를 쓸 때 사용
+    train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')
+    train_retriever = train_db.as_retriever(search_kwargs={'k': 1})
+    # train_dict = make_dict('train.csv')
+    
+    test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')
+    test_retriver = test_db.as_retriever(search_kwargs={'k': 3})
+    test_dict = make_dict('test.csv')
+    
+    fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
+    model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    llm = setup_llm_pipeline(model_id)
+    
+    results = run(train_retriever,
+        test_retriver,
+        fewshot_db, 
+        test_dict ,
+        llm)
+    save(results)
