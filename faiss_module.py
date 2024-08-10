@@ -4,7 +4,7 @@ from langchain_text_splitters import CharacterTextSplitter
 import os
 from glob import glob
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.document_loaders import UnstructuredPDFLoader
+
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA
 from langchain.schema import Document
@@ -29,7 +29,7 @@ def normalize_string(s):
 def get_embedding():
     embeddings = HuggingFaceEmbeddings(
         model_name='intfloat/multilingual-e5-small',
-        model_kwargs={'device': 'mps'},
+        model_kwargs={'device': 'cuda'},
         encode_kwargs={'normalize_embeddings': True}
         )
     return embeddings
@@ -80,8 +80,10 @@ def load_chunks_make_docdb(pdf_directory, db_path):
     # PDF 파일들을 로드하여 분할
     pdf_files = glob(os.path.join(pdf_directory, '*.pdf').replace('\\', '/'))
     for pdf_file in pdf_files:
-        loader = PyPDFLoader(pdf_file, extract_images=True)
+        loader = PyPDFLoader(pdf_file)
         pdf_documents = loader.load()
+        for pdf_document in pdf_documents:
+            pdf_document.page_content = pdf_document.page_content.replace("\x07","")
         documents.extend(pdf_documents)
     
     # 유니코드 정규화
@@ -89,7 +91,7 @@ def load_chunks_make_docdb(pdf_directory, db_path):
         doc.page_content = normalize_string(doc.page_content)
 
     # 분할된 텍스트를 벡터로 변환하여 FAISS DB에 저장
-    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=32)
+    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
     chunks = chunk_splitter.split_documents(documents)
     print("Done.", len(chunks), "chunks")
     
@@ -101,33 +103,56 @@ def load_chunks_make_docdb(pdf_directory, db_path):
     
     return db
 
-def make_db(df):
+def make_db(df, db_path):
+    if db_path is not None:
+        if os.path.exists(db_path) and os.path.exists(db_path + '_metadata.pkl'):
+            print("Loading FAISS DB from:", db_path)
+            db, metadata = load_faiss_db(db_path)
+            return db
+
     documents = []
     pdf_files = df['Source_path'].unique()
     print("Loading PDF files from:", len(pdf_files))
     for pdf_file in pdf_files:
-        loader = UnstructuredPDFLoader(pdf_file)
+        loader = PyPDFLoader(pdf_file)
         pdf_documents = loader.load()
+        for pdf_document in pdf_documents:
+            pdf_document.page_content = pdf_document.page_content.replace("\x07","")
         documents.extend(pdf_documents)
     # 유니코드 정규화
     for doc in documents:
         doc.page_content = normalize_string(doc.page_content)
-    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=32)
+    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
     chunks = chunk_splitter.split_documents(documents)
     print("Done.", len(chunks), "chunks")
     
     print("Creating FAISS DB")
     # FAISS DB 생성 및 저장
     db = FAISS.from_documents(chunks, embedding=get_embedding())
+    if db_path is not None:
+        save_faiss_db(db, db_path)
     print("Done.")
+    
     return db
 
-def make_fewshot_db(df):
+def make_fewshot_db(df, db_path):
+    if db_path is not None:
+        if os.path.exists(db_path) and os.path.exists(db_path + '_metadata.pkl'):
+            print("Loading FAISS DB from:", db_path)
+            db, metadata = load_faiss_db(db_path)
+            return db
+
     df = df.drop('SAMPLE_ID', axis=1)
     df = df.to_dict(orient='records')
+    print("Loaded Fewshot Set:", df[:1])
     # 벡터화할 텍스트 생성 및 유니코드 정규화
     to_vectorize = ["\n\n".join(normalize_string(value) for value in example.values()) for example in df]
     
     # 벡터화 및 FAISS DB 생성
+    print("Creating FAISS DB")
     fewshot_vectordb = FAISS.from_texts(to_vectorize, embedding=get_embedding(), metadatas=df)
+        # FAISS DB 저장
+    if db_path is not None:
+        save_faiss_db(fewshot_vectordb, db_path)
+    print("Done.")
     return fewshot_vectordb

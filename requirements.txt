@@ -9,3 +9,4 @@ pypdf
 faiss-cpu
 sentence_transformers
 bitsandbytes
+rapidocr-onnxruntime

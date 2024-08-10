@@ -18,7 +18,7 @@ def format_docs(docs):
     context = ""
     for i, doc in enumerate(docs):
         #context += f"Document {i+1}\n"
-        context += doc.page_content.replace("\x07","")
+        context += doc.page_content
         context += '\n\n'
     return context
 
