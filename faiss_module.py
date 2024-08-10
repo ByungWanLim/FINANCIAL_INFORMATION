@@ -4,6 +4,7 @@ from langchain_text_splitters import CharacterTextSplitter
 import os
 from glob import glob
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import UnstructuredPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA
 from langchain.schema import Document
@@ -28,7 +29,7 @@ def normalize_string(s):
 def get_embedding():
     embeddings = HuggingFaceEmbeddings(
         model_name='intfloat/multilingual-e5-small',
-        model_kwargs={'device': 'cuda'},
+        model_kwargs={'device': 'mps'},
         encode_kwargs={'normalize_embeddings': True}
         )
     return embeddings
@@ -79,7 +80,7 @@ def load_chunks_make_docdb(pdf_directory, db_path):
     # PDF 파일들을 로드하여 분할
     pdf_files = glob(os.path.join(pdf_directory, '*.pdf').replace('\\', '/'))
     for pdf_file in pdf_files:
-        loader = PyPDFLoader(pdf_file)
+        loader = PyPDFLoader(pdf_file, extract_images=True)
         pdf_documents = loader.load()
         documents.extend(pdf_documents)
     
@@ -105,7 +106,7 @@ def make_db(df):
     pdf_files = df['Source_path'].unique()
     print("Loading PDF files from:", len(pdf_files))
     for pdf_file in pdf_files:
-        loader = PyPDFLoader(pdf_file)
+        loader = UnstructuredPDFLoader(pdf_file)
         pdf_documents = loader.load()
         documents.extend(pdf_documents)
     # 유니코드 정규화
