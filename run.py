@@ -17,7 +17,7 @@ def run(train_db,test_db,fewshot_db, dataset ,llm, varbose = False):
     results =[]
     for i in tqdm(range(len(dataset))):
         test_retriver = test_db.as_retriever(search_type="similarity_score_threshold",
-                search_kwargs={'score_threshold': 0.8,'k':2})
+                search_kwargs={'score_threshold': 0.77,'k':2})
         # train_retriever가 있으면 context를 포함한 fewshot prompt 생성
         # 없으면 fewshot prompt만 생성
         fewshot_str = fewshot_ex(fewshot_db, dataset[i],train_db= train_db, fewshot_num = 3)

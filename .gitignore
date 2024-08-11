@@ -8,7 +8,7 @@ test_faiss_db/
 test_faiss_db_metadata.pkl
 train_faiss_db/
 train_faiss_db_metadata.pkl
-
+results/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
