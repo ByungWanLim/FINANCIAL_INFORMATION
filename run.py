@@ -12,13 +12,15 @@ from seed_module import seed_everything
 from utils_module import make_dict, extract_answer, format_docs
 seed_everything(52)
 
-def run(train_retriever,test_retriver,fewshot_db, dataset ,llm, varbose = False):
+def run(train_db,test_db,fewshot_db, dataset ,llm, varbose = False):
     # reordering = LongContextReorder()
     results =[]
     for i in tqdm(range(len(dataset))):
+        test_retriver = test_db.as_retriever(search_type="similarity_score_threshold",
+                search_kwargs={'score_threshold': 0.8,'k':2})
         # train_retriever가 있으면 context를 포함한 fewshot prompt 생성
         # 없으면 fewshot prompt만 생성
-        fewshot_str = fewshot_ex(fewshot_db, dataset[i],train_retriever= train_retriever, fewshot_num = 3)
+        fewshot_str = fewshot_ex(fewshot_db, dataset[i],train_db= train_db, fewshot_num = 3)
         #print(fewshot_str)
         full_template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 Today Date: 8 Aug 2024
@@ -39,6 +41,7 @@ Please learn the answering like examples below.<|eot_id|>
 """ +f"{fewshot_str}" + """<|start_header_id|>system<|end_header_id|>
 Now Do it for real.
 Given the following contexts about Question.
+Context
 {context}<|start_header_id|>user<|end_header_id|>
 {input}<|eot_id|>
 <|start_header_id|>assistant<|end_header_id|>\n\n
@@ -79,22 +82,20 @@ if __name__ == "__main__":
     # train에도 RAG를 쓸 때 사용
     train_df = pd.read_csv('train.csv')
     train_db = make_db(train_df, './train_faiss_db')
-    train_retriever = train_db.as_retriever(search_type="similarity_score_threshold",
-                search_kwargs={'score_threshold': 0.78,'k':1})
+
     # train_dict = make_dict('train.csv')
 
     test_df = pd.read_csv('test.csv')
     test_db = make_db(test_df, './test_faiss_db')
-    test_retriver = test_db.as_retriever(search_type="similarity_score_threshold",
-                search_kwargs={'score_threshold': 0.8,'k':2})
+
     test_dict = make_dict('test.csv')
     
     fewshot_db = make_fewshot_db(train_df, './fewshot_faiss_db')
     model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     llm = setup_llm_pipeline(model_id)
     
-    results = run(train_retriever= train_retriever,
-        test_retriver= test_retriver,
+    results = run(train_db= train_db,
+        test_db= test_db,
         fewshot_db=fewshot_db, 
         dataset= test_df.to_dict(orient='records') ,
         llm=llm,

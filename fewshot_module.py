@@ -6,7 +6,7 @@ from faiss_module import load_and_vectorize, load_chunks_make_docdb
 from utils_module import format_docs, sys_token, user_token, context_token
 
 
-def fewshot_ex(fewshot_db, buff, train_retriever = None, fewshot_num = 3):
+def fewshot_ex(fewshot_db, buff, train_db = None, fewshot_num = 3):
     template ="""<|start_header_id|>user<|end_header_id|>\n{Question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>\n{Answer}<|eot_id|>\n\n"""
 
     example_selector = SemanticSimilarityExampleSelector(
@@ -19,9 +19,10 @@ def fewshot_ex(fewshot_db, buff, train_retriever = None, fewshot_num = 3):
     for i , entry in enumerate(ex):
         
         question = entry['Question']
-        if train_retriever is not None:
-            fewshot_prompt = PromptTemplate.from_template("""<|start_header_id|>system<|end_header_id|>
-Given the following contexts about Question:\n{contents}"""+template)
+        if train_db is not None:
+            train_retriever = train_db.as_retriever(search_type="similarity_score_threshold",
+                search_kwargs={'score_threshold': 0.78,'k':1})
+            fewshot_prompt = PromptTemplate.from_template("""<|start_header_id|>system<|end_header_id|>\nContext\n{contents}"""+template)
             retrieved_docs = train_retriever.invoke(question)
             ex[i]['contents'] = format_docs(retrieved_docs) # [{'Question': '질문', 'Answer': '답변', 'contents': '문서'}]
         else:
