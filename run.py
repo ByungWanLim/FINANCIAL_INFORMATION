@@ -38,12 +38,9 @@ Here are some rules you should follow.
 - Please answer the question in 1-3 sentences.
 
 Please learn the answering like examples below.<|eot_id|>
-""" +f"{fewshot_str}" + """<|start_header_id|>system<|end_header_id|>
-Now Do it for real.
-Given the following contexts about Question.
-Context
-{context}<|start_header_id|>user<|end_header_id|>
-{input}<|eot_id|>
+""" +f"{fewshot_str}" + """
+<|start_header_id|>user<|end_header_id|>
+Question: {input}\n\nContext: {context}<|eot_id|>
 <|start_header_id|>assistant<|end_header_id|>\n\n
 """
         prompt = PromptTemplate.from_template(full_template)
