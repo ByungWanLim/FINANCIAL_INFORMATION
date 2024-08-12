@@ -1,4 +1,14 @@
 import pandas as pd
+
+def sys_token(content):
+    return f"<|start_header_id|>system<|end_header_id|>\n{content}<|eot_id|>\n"
+
+def user_token(content):
+    return f"<|start_header_id|>user<|end_header_id|>\n{content}<|eot_id|>\n"
+
+def context_token(content):
+    return f"<|start_header_id|>context<|end_header_id|>\n{content}<|eot_id|>\n"
+
 def make_dict(dir='train.csv'):
     df = pd.read_csv(dir)
     return df.to_dict(orient='records')
@@ -7,9 +17,9 @@ def format_docs(docs):
     """검색된 문서들을 하나의 문자열로 포맷팅"""
     context = ""
     for i, doc in enumerate(docs):
-        context += f"Document {i+1}\n"
-        context += doc.page_content.replace("\x07","")
-        context += '<|eot_id|>\n\n'
+        #context += f"Document {i+1}\n"
+        context += doc.page_content
+        context += '\n\n'
     return context
 
 def extract_answer(response):
