@@ -122,7 +122,7 @@ def make_db(df, db_path):
     # 유니코드 정규화
     for doc in documents:
         doc.page_content = normalize_string(doc.page_content)
-    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
+    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=256)
     chunks = chunk_splitter.split_documents(documents)
     print("Done.", len(chunks), "chunks")
     

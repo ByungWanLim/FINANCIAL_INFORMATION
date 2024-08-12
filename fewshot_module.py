@@ -18,7 +18,7 @@ def fewshot_ex(fewshot_db, buff, train_db = None, fewshot_num = 3):
     fewshot_str = ""
     for i , entry in enumerate(ex):
         train_retriever = train_db.as_retriever(search_type="similarity_score_threshold",
-                search_kwargs={'score_threshold': 0.76,'k':1})
+                search_kwargs={'score_threshold': 0.77,'k':1})
         question = entry['Question']
         retrieved_docs = train_retriever.invoke(question)
         if train_db is not None and len(retrieved_docs) > 0:
