@@ -23,8 +23,6 @@ def run(train_db,test_db,fewshot_db, dataset ,llm, varbose = False):
         fewshot_str = fewshot_ex(fewshot_db, dataset[i],train_db= train_db, fewshot_num = 3)
         #print(fewshot_str)
         full_template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-Today Date: 8 Aug 2024
-
 You are the financial expert who helps me with my financial information Q&As.
 You earn 10 points when you answer me and follow the rules and lose 7 points when you don't.
 
@@ -37,7 +35,7 @@ Here are some rules you should follow.
 - Please answers must be written in Korean.
 - Please answer the question in 1-3 sentences.
 
-Please learn the answering like examples below.<|eot_id|>
+- Use the three examples below to learn how to follow the rules and reference information in context.<|eot_id|>
 """ +f"{fewshot_str}" + """
 <|start_header_id|>user<|end_header_id|>
 Question: {input}\n\nContext: {context}<|eot_id|>
