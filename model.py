@@ -11,7 +11,7 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
     bnb_4bit_quant_type="nf4", 
     bnb_4bit_compute_dtype=torch.bfloat16
 )
-    model = AutoModelForCausalLM.from_pretrained(model_id, quantization_config=bnb_config)
+    model = AutoModelForCausalLM.from_pretrained(model_id, quantization_config=bnb_config,low_cpu_mem_usage=True)
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     terminators = [
     tokenizer.eos_token_id,

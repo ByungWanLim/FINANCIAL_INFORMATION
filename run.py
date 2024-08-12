@@ -12,7 +12,7 @@ from seed_module import seed_everything
 from utils_module import make_dict, extract_answer, format_docs
 seed_everything(52)
 
-def run(train_db,test_db,fewshot_db, dataset ,llm, varbose = False):
+def run(train_db,test_db,fewshot_db, dataset ,llm, verbose = False):
     # reordering = LongContextReorder()
     results =[]
     for i in tqdm(range(len(dataset))):
@@ -52,7 +52,7 @@ Question: {input}\n\nContext: {context}<|eot_id|>
         | StrOutputParser()
         )
         # print("================================================")
-        if varbose:
+        if verbose:
             print("\nQuestion: ",dataset[i]['Question'])
         answer = qa_chain.invoke(dataset[i]['Question'])
         answer = extract_answer(answer)
@@ -61,7 +61,7 @@ Question: {input}\n\nContext: {context}<|eot_id|>
             "Answer": answer,
             "Source": dataset[i]['Source']
             })
-        if varbose:
+        if verbose:
             print("Answer: ",results[-1]['Answer'])
         #print(results[-1]['Source'])
     return results
@@ -94,5 +94,5 @@ if __name__ == "__main__":
         fewshot_db=fewshot_db, 
         dataset= test_df.to_dict(orient='records') ,
         llm=llm,
-        varbose=True)
+        verbose=True)
     save(results)
