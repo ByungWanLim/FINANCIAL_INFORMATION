@@ -17,13 +17,13 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
 
     # train에도 RAG를 쓸 때 사용
     train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')
-    #train_retriever = train_db.as_retriever(search_kwargs={'k': 1})
-    train_retriever = create_multi_query_retriever(train_db, llm, k=1)
+    train_retriever = train_db.as_retriever(search_kwargs={'k': 1})
+    #train_retriever = create_multi_query_retriever(train_db, llm, k=1)
     # train_dict = make_dict('train.csv')
 
     test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')
-    #test_retriver = test_db.as_retriever(search_kwargs={'k': 3})
-    test_retriver = create_multi_query_retriever(test_db, llm, k=3)
+    test_retriver = test_db.as_retriever(search_kwargs={'k': 2})
+    #test_retriver = create_multi_query_retriever(test_db, llm, k=3)
     test_dict = make_dict('test.csv')
 
     fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
