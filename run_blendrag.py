@@ -84,15 +84,15 @@ if __name__ == "__main__":
     # MLP-KTLim/llama-3-Korean-Bllossom-8B
     # train에도 RAG를 쓸 때 사용
     train_df = pd.read_csv('train.csv')
-    train_db = FAISSDatabaseManager(db_path='./serm_best_field_train_db', chunk_strategy="serm", search_strategy="serm_best_field")
+    train_db = FAISSDatabaseManager(db_path='./knn_train', chunk_strategy="recursive", search_strategy="knn_best_field")
     train_db.make_db(train_df)
     
     test_df = pd.read_csv('test.csv')
-    test_db = FAISSDatabaseManager(db_path='./serm_best_field_test_db', chunk_strategy="serm", search_strategy="serm_best_field")
+    test_db = FAISSDatabaseManager(db_path='./knn_test', chunk_strategy="recursive", search_strategy="knn_best_field")
     test_db.make_db(test_df)
     test_dict = make_dict('test.csv')
     
-    fewshot_db = FAISSDatabaseManager(db_path='./fewshot_db',search_strategy="knn_best_field")
+    fewshot_db = FAISSDatabaseManager(db_path='./fewshot_db',chunk_strategy='paragraph',search_strategy="knn_best_field")
     fewshot_db.make_db(train_df,fewshot=True)
     
     model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"

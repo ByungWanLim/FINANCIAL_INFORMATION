@@ -4,7 +4,7 @@ import pandas as pd
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 
-from faiss_module import load_and_vectorize,load_chunks_make_docdb, make_db, make_fewshot_db
+from faiss_module import  make_db, make_fewshot_db
 from model import setup_llm_pipeline
 from fewshot_module import fewshot_ex
 from save_module import save

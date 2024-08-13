@@ -7,18 +7,19 @@ import logging
 from sentence_transformers import SentenceTransformer
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.schema import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # 로깅 설정
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
 class FAISSDatabaseManager:
-    def __init__(self, db_path, chunk_strategy="paragraph", search_strategy="knn_best_field", embedding_model_name='sentence-transformers/all-MiniLM-L6-v2'):
+    def __init__(self, db_path, chunk_strategy="recursive", search_strategy="knn_best_field", embedding_model_name='sentence-transformers/all-MiniLM-L6-v2'):
         """
         초기화 메서드.
         
         :param db_path: FAISS DB 저장 경로.
-        :param chunk_strategy: 텍스트를 청크로 나누는 방법을 선택. ("paragraph" 또는 "serm")
+        :param chunk_strategy: 텍스트를 청크로 나누는 방법을 선택. ("recursive" 또는 "paragraph")
         :param search_strategy: 검색 전략을 선택. ("knn_best_field")
         :param embedding_model_name: 임베딩 모델의 이름.
         """
@@ -50,6 +51,8 @@ class FAISSDatabaseManager:
         """텍스트를 선택한 청크 전략에 따라 분할"""
         if self.chunk_strategy == "paragraph":
             return self.paragraph_based_chunking(text, max_length)
+        elif self.chunk_strategy == "recursive":
+            return self.recursive_character_chunking(text, max_length)
         else:
             raise ValueError("Invalid chunk strategy")
 
@@ -72,6 +75,12 @@ class FAISSDatabaseManager:
         if current_chunk:
             chunks.append("\n\n".join(current_chunk))
         
+        return chunks
+
+    def recursive_character_chunking(self, text, max_length=512):
+        """RecursiveCharacterTextSplitter를 사용하여 텍스트를 청크로 분할"""
+        splitter = RecursiveCharacterTextSplitter(chunk_size=max_length, chunk_overlap=256)
+        chunks = splitter.split_text(text)
         return chunks
 
     def extract_best_field(self, doc):
@@ -123,9 +132,13 @@ class FAISSDatabaseManager:
             return
 
         if fewshot:
+            # Few-shot DB를 생성할 때는 "paragraph" 청크 전략을 강제로 사용
+            original_chunk_strategy = self.chunk_strategy
+            self.chunk_strategy = "paragraph"
             df = df.drop('SAMPLE_ID', axis=1)
             records = df.to_dict(orient='records')
             texts = ["\n\n".join(self.normalize_string(value) for value in record.values()) for record in records]
+            self.chunk_strategy = original_chunk_strategy  # 전략 복원
         else:
             documents = self.process_documents(df, max_length)
             texts = [self.extract_best_field(doc) for doc in documents]
@@ -156,7 +169,7 @@ class FAISSDatabaseManager:
         """
         Best Field 전략을 적용하여 검색 결과를 처리하는 메서드.
         
-        :param documents: 검색된 문서 리스트.
+        :param documents: 검색된 문서 리스트 (Document 객체 또는 dict 객체).
         :param indices: 검색된 문서의 인덱스 리스트.
         :param query: 검색 쿼리.
         :return: Best Field 전략이 적용된 검색 결과 리스트.
@@ -164,8 +177,19 @@ class FAISSDatabaseManager:
         results = []
         for i in indices:
             doc = documents[i]
-            if query.lower() in doc.metadata.get('title', '').lower():
-                results.insert(0, doc)
+            # dict 객체일 경우 처리
+            if isinstance(doc, dict):
+                title = doc.get('title', '')
+                content = doc.get('content', '')
+                if query.lower() in title.lower():
+                    results.insert(0, doc)
+                else:
+                    results.append(doc)
+            # Document 객체일 경우 처리
             else:
-                results.append(doc)
+                if query.lower() in doc.metadata.get('title', '').lower():
+                    results.insert(0, doc)
+                else:
+                    results.append(doc)
         return results
+

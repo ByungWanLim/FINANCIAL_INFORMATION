@@ -29,7 +29,7 @@ def normalize_string(s):
 
 def get_embedding():
     embeddings = HuggingFaceEmbeddings(
-        model_name='intfloat/multilingual-e5-small',
+        model_name='intfloat/multilingual-e5-large',
         model_kwargs={'device': 'cuda'},
         encode_kwargs={'normalize_embeddings': True}
         )

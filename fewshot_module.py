@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from langchain_core.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain_core.example_selectors import SemanticSimilarityExampleSelector
-from faiss_module import load_and_vectorize, load_chunks_make_docdb
+
 from utils_module import format_docs, sys_token, user_token, context_token
 
 
