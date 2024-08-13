@@ -38,8 +38,8 @@ Here are some rules you should follow.
 - Use the three examples below to learn how to follow the rules and reference information in context.<|eot_id|>
 """ +"""
 <|start_header_id|>user<|end_header_id|>
-Question: {input}\n\nContext: {context}<|eot_id|>
-<|start_header_id|>assistant<|end_header_id|>\n\n
+Question: {input}\n\nContext\n{context}<|eot_id|>
+<|start_header_id|>assistant<|end_header_id|>\n
 """
         prompt = PromptTemplate.from_template(full_template)
         qa_chain = (

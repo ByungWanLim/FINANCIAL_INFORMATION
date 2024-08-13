@@ -23,10 +23,10 @@ def fewshot_ex(fewshot_db, buff, train_db = None, fewshot_num = 3):
         retrieved_docs = train_retriever.invoke(question)
         if train_db is not None and len(retrieved_docs) > 0:
 
-            fewshot_prompt = PromptTemplate.from_template("""<|start_header_id|>user<|end_header_id|>\nQuestion: {Question}\n\nContext: {contents}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>\n{Answer}<|eot_id|>\n\n""")
+            fewshot_prompt = PromptTemplate.from_template("""<|start_header_id|>user<|end_header_id|>\nQuestion\n{Question}\n\nContext\n{contents}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>\n{Answer}<|eot_id|>\n\n""")
             
             ex[i]['contents'] = format_docs(retrieved_docs) # [{'Question': '질문', 'Answer': '답변', 'contents': '문서'}]
         else:
-            fewshot_prompt = PromptTemplate.from_template("""<|start_header_id|>user<|end_header_id|>\nQuestion: {Question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>\n{Answer}<|eot_id|>\n\n""") # [{'Question': '질문', 'Answer': '답변'}]
+            fewshot_prompt = PromptTemplate.from_template("""<|start_header_id|>user<|end_header_id|>\nQuestion\n{Question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>\n{Answer}<|eot_id|>\n\n""") # [{'Question': '질문', 'Answer': '답변'}]
         fewshot_str += fewshot_prompt.format(**ex[i]) 
     return fewshot_str

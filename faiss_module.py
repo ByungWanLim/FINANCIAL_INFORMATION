@@ -10,7 +10,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 
 
-
+from langchain_community.retrievers import KNNRetriever
 from langchain_huggingface import HuggingFaceEmbeddings
 
 import pandas as pd
@@ -30,7 +30,7 @@ def normalize_string(s):
 def get_embedding():
     embeddings = HuggingFaceEmbeddings(
         model_name='intfloat/multilingual-e5-large',
-        model_kwargs={'device': 'cuda'},
+        model_kwargs={'device': 'mps'},
         encode_kwargs={'normalize_embeddings': True}
         )
     return embeddings
@@ -120,3 +120,27 @@ def make_fewshot_db(df, db_path):
         save_faiss_db(fewshot_vectordb, db_path)
     print("Done.")
     return fewshot_vectordb
+
+def knn_db(df):
+    df = df.drop('SAMPLE_ID', axis=1)
+    documents = []
+    pdf_files = df['Source_path'].unique()
+    print("Loading PDF files from:", len(pdf_files))
+    for pdf_file in pdf_files:
+        loader = PyPDFLoader(pdf_file)
+        pdf_documents = loader.load()
+        for pdf_document in pdf_documents:
+            pdf_document.page_content = pdf_document.page_content.replace("\x07","")
+        documents.extend(pdf_documents)
+    # 유니코드 정규화
+    for doc in documents:
+        doc.page_content = normalize_string(doc.page_content)
+    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
+    chunks = chunk_splitter.split_documents(documents)
+    print("Done.", len(chunks), "chunks")
+    retriever = KNNRetriever.from_documents(chunks, embedding=get_embedding())
+    
+    return retriever
+
+def best_field(text):
+    return text
