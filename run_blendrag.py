@@ -10,6 +10,7 @@ from vectordb_module import FAISSDatabaseManager
 from save_module import save
 from seed_module import seed_everything
 from utils_module import make_dict, extract_answer, format_docs
+seed_everything(52)
 
 def fewshot_ex(fewshot_db, buff, train_db=FAISSDatabaseManager, fewshot_num=3, context_num=1):
     results = fewshot_db.search_documents(buff, top_k=fewshot_num)
@@ -21,13 +22,13 @@ def fewshot_ex(fewshot_db, buff, train_db=FAISSDatabaseManager, fewshot_num=3, c
         if train_db is not None:
             contexts = train_db.search_documents(question, top_k=context_num)
             contexts = format_docs(contexts)
-            buff_string += f"{contexts}<|eot_id|>"
+            buff_string += f"Context\n{contexts}\n<|eot_id|>"
         buff_string += f"<|start_header_id|>assistant<|end_header_id>\n{entry['Answer']}<|eot_id|>"
         fewshot_str += buff_string
     return fewshot_str
 
 def run(train_db, test_db, fewshot_db, dataset, llm, verbose=False):
-    seed_everything(52)
+    
     results = []
     for i in tqdm(range(len(dataset))):
         fewshot_str = fewshot_ex(fewshot_db, dataset[i]['Question'], train_db=train_db, fewshot_num=3, context_num=1)
@@ -39,7 +40,7 @@ Here are some rules you should follow.
 - Please your answers should be concise.
 - Please answers must be written in Korean.
 - Please answer the question in 1-3 sentences.
-- Pleease calculate the answer in Korean won. 12,500 백만원 = 125 억원 = 12,500,000,000 원, 5,400 백만원 = 54 억원 = 5,400,000,000 원
+
 - Use the three examples below to learn how to follow the rules and reference information in context.<|eot_id|>
 """
         full_template += f"{fewshot_str}"
