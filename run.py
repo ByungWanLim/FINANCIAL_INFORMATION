@@ -20,7 +20,7 @@ def run(train_db,test_db,fewshot_db, dataset ,llm, verbose = False):
                 search_kwargs={'score_threshold': 0.77,'k':2})
         # train_retriever가 있으면 context를 포함한 fewshot prompt 생성
         # 없으면 fewshot prompt만 생성
-        fewshot_str = fewshot_ex(fewshot_db, dataset[i],train_db= train_db, fewshot_num = 3)
+        # fewshot_str = fewshot_ex(fewshot_db, dataset[i],train_db= train_db, fewshot_num = 3)
         #print(fewshot_str)
         full_template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 You are the financial expert who helps me with my financial information Q&As.
@@ -36,7 +36,7 @@ Here are some rules you should follow.
 - Please answer the question in 1-3 sentences.
 
 - Use the three examples below to learn how to follow the rules and reference information in context.<|eot_id|>
-""" +f"{fewshot_str}" + """
+""" +"""
 <|start_header_id|>user<|end_header_id|>
 Question: {input}\n\nContext: {context}<|eot_id|>
 <|start_header_id|>assistant<|end_header_id|>\n\n
