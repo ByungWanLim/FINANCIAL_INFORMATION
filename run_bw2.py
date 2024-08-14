@@ -24,7 +24,7 @@ def run(train_db,test_db,fewshot_db, dataset ,llm, verbose = False):
                                             search_kwargs={'k':3})
         
         ensemble_retriever = EnsembleRetriever(
-            retrievers=[sim_retriver, mmr_retriver], weights=[0.15, 0.85]
+            retrievers=[sim_retriver, mmr_retriver], weights=[0.2, 0.8]
             )
         # train_retriever가 있으면 context를 포함한 fewshot prompt 생성
         # 없으면 fewshot prompt만 생성
