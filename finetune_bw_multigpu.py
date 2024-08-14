@@ -1,9 +1,3 @@
-import os
-import torch
-import torch.distributed as dist
-from torch.utils.data import DataLoader, DistributedSampler
-from datasets import Dataset
-from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline, BitsAndBytesConfig
 from faiss_module import make_db
 import pandas as pd
@@ -77,6 +71,7 @@ from sklearn.model_selection import train_test_split
 train_df, val_df = train_test_split(train_df, test_size=0.2, random_state=52)
 
 # train_df는 학습셋, val_df는 검증셋
+
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
 from peft import get_peft_model, LoraConfig, TaskType
@@ -116,82 +111,109 @@ model = get_peft_model(model, peft_config)
 
 # 이후 Trainer를 사용해 파인튜닝을 진행
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
-def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-    torch.cuda.set_device(rank)
+from torch.utils.data import DataLoader, DistributedSampler
+from datasets import Dataset
 
-def cleanup():
-    dist.destroy_process_group()
 
-def prepare_dataloader(dataset, batch_size, shuffle=True):
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        pin_memory=True,
-        shuffle=False,  # DistributedSampler에서 셔플을 처리합니다
-        sampler=DistributedSampler(dataset, shuffle=shuffle)
-    )
+# 토크나이즈 함수 정의
+def tokenize_function(examples):
+    return tokenizer(examples['prompt'], padding='max_length', truncation=True, max_length=256)
+# 모델의 정답 라벨 설정
+def add_labels(examples):
+    labels = tokenizer(examples['Answer'], padding='max_length', truncation=True, max_length=256).input_ids
+    examples['labels'] = labels
+    return examples
 
-def train(rank, world_size):
-    setup(rank, world_size)
+
+# 예시로, 기존 데이터셋 생성
+train_dataset = Dataset.from_pandas(train_df[['prompt', 'Answer']])
+val_dataset = Dataset.from_pandas(val_df[['prompt', 'Answer']])
+
+# 토크나이징과 라벨 추가는 동일하게 적용
+train_dataset = train_dataset.map(tokenize_function, batched=True)
+train_dataset = train_dataset.map(add_labels, batched=True)
+
+val_dataset = val_dataset.map(tokenize_function, batched=True)
+val_dataset = val_dataset.map(add_labels, batched=True)
+
+# DistributedSampler 생성
+# train_sampler = DistributedSampler(train_dataset)
+# val_sampler = DistributedSampler(val_dataset)
+
+# DataLoader에 샘플러 적용
+# train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=1)
+# val_dataloader = DataLoader(val_dataset, sampler=val_sampler, batch_size=2)
+
+from collections import Counter
+import numpy as np
+# F1 점수를 계산하는 함수
+def calculate_f1_score(true_sentence, predicted_sentence, sum_mode=True):
+    true_sentence = ''.join(true_sentence.split())
+    predicted_sentence = ''.join(predicted_sentence.split())
     
-    # 토크나이즈 함수 정의
-    def tokenize_function(examples):
-        return tokenizer(examples['prompt'], padding='max_length', truncation=True, max_length=512)
+    true_counter = Counter(true_sentence)
+    predicted_counter = Counter(predicted_sentence)
     
-    # 모델의 정답 라벨 설정
-    def add_labels(examples):
-        labels = tokenizer(examples['Answer'], padding='max_length', truncation=True, max_length=512).input_ids
-        examples['labels'] = labels
-        return examples
+    if sum_mode:
+        true_positive = sum((true_counter & predicted_counter).values())
+        predicted_positive = sum(predicted_counter.values())
+        actual_positive = sum(true_counter.values())
+    else:
+        true_positive = len((true_counter & predicted_counter).values())
+        predicted_positive = len(predicted_counter.values())
+        actual_positive = len(true_counter.values())
 
-    # 데이터셋 생성 및 전처리
-    train_dataset = Dataset.from_pandas(train_df[['prompt', 'Answer']])
-    val_dataset = Dataset.from_pandas(val_df[['prompt', 'Answer']])
+    precision = true_positive / predicted_positive if predicted_positive > 0 else 0
+    recall = true_positive / actual_positive if actual_positive > 0 else 0
+    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    
+    return precision, recall, f1_score
+# compute_metrics 함수 정의
+def compute_metrics(eval_pred):
+    logits, labels = eval_pred
+    predictions = np.argmax(logits, axis=-1)
+    
+    predicted_sentences = [tokenizer.decode(pred, skip_special_tokens=True) for pred in predictions]
+    true_sentences = [tokenizer.decode(label, skip_special_tokens=True) for label in labels]
+    
+    f1_scores = [calculate_f1_score(true, pred)[2] for true, pred in zip(true_sentences, predicted_sentences)]
+    avg_f1_score = np.mean(f1_scores)
+    
+    return {"f1": avg_f1_score}
 
-    train_dataset = train_dataset.map(tokenize_function, batched=True)
-    train_dataset = train_dataset.map(add_labels, batched=True)
+from transformers import Trainer, TrainingArguments
 
-    val_dataset = val_dataset.map(tokenize_function, batched=True)
-    val_dataset = val_dataset.map(add_labels, batched=True)
+# TrainingArguments 설정
+training_args = TrainingArguments(
+    output_dir='./results',                  # 결과를 저장할 디렉토리
+    evaluation_strategy="epoch",             # 에포크마다 평가
+    per_device_train_batch_size=1,           # GPU 하나당 배치 크기 (DataLoader에서 설정한 것과 일치시킴)
+    per_device_eval_batch_size=1,            # GPU 하나당 평가 배치 크기 (DataLoader에서 설정한 것과 일치시킴)
+    num_train_epochs=3,                      # 학습할 에포크 수
+    learning_rate=5e-5,                      # 학습률
+    weight_decay=0.01,                       # 가중치 감소
+    fp16=True,                               # Mixed Precision 사용 (메모리 절약 및 학습 속도 증가)
+    dataloader_pin_memory=True,              # DataLoader가 메모리 핀 설정을 하도록 설정
+    dataloader_drop_last=False,              # 배치가 나누어 떨어지지 않을 경우 마지막 배치 드롭 여부
+    report_to="none",                        # 로깅이나 기타 리포팅 도구를 사용하지 않음 (필요시 변경)
+)
 
-    # DataLoader 생성
-    train_dataloader = prepare_dataloader(train_dataset, batch_size=1)  # 배치 사이즈를 GPU 수로 나눕니다
-    val_dataloader = prepare_dataloader(val_dataset, batch_size=2, shuffle=False)
+# Trainer 설정
+trainer = Trainer(
+    model=model,                             # 학습할 모델
+    args=training_args,                      # 위에서 설정한 TrainingArguments
+    #train_dataloader=train_dataset,       # 커스텀 DataLoader (DistributedSampler 사용)
+    #eval_dataloader=val_dataset,          # 커스텀 DataLoader (DistributedSampler 사용)
+    train_dataset=train_dataset,            # 학습 데이터셋
+    eval_dataset=val_dataset,                # 검증 데이터셋
+    tokenizer=tokenizer,                     # 사용 중인 토크나이저
+    compute_metrics=compute_metrics          # 평가 메트릭 함수 (선택 사항)
+)
 
-    # 모델을 GPU로 이동하고 DDP로 래핑
-    #model = model.to(rank)
-    model = DDP(model, device_ids=[rank])
+# 학습 수행
+trainer.train()
 
-    # 옵티마이저 설정
-    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
-
-    # 학습 루프
-    num_epochs = 3
-    for epoch in range(num_epochs):
-        model.train()
-        for batch in train_dataloader:
-            optimizer.zero_grad()
-            inputs = {k: v.to(rank) for k, v in batch.items()}
-            outputs = model(**inputs)
-            loss = outputs.loss
-            loss.backward()
-            optimizer.step()
-
-        # 검증
-        model.eval()
-        with torch.no_grad():
-            for batch in val_dataloader:
-                inputs = {k: v.to(rank) for k, v in batch.items()}
-                outputs = model(**inputs)
-                # 검증 메트릭 계산 등
-
-    cleanup()
-
-if __name__ == "__main__":
-    world_size = 1  # 4개의 GPU 사용
-    torch.multiprocessing.spawn(train, args=(world_size,), nprocs=world_size, join=True)
+# 모델 저장
+model.save_pretrained("./saved_model")
+tokenizer.save_pretrained("./saved_model")
