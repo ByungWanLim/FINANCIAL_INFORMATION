@@ -23,9 +23,9 @@ import numpy as np
 
 from langchain.schema import Document
 
-def normalize_string(s):
-    """유니코드 정규화"""
-    return unicodedata.normalize('NFC', s)
+# def normalize_string(s):
+#     """유니코드 정규화"""
+#     return unicodedata.normalize('NFC', s)
 
 def get_embedding():
     embeddings = HuggingFaceEmbeddings(
@@ -85,7 +85,8 @@ def make_db(df, db_path):
         documents.extend(pdf_documents)
     # 유니코드 정규화
     for doc in documents:
-        doc.page_content = normalize_string(doc.page_content)
+        # doc.page_content = normalize_string(doc.page_content)
+        doc.page_content = doc.page_content
     chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
     chunks = chunk_splitter.split_documents(documents)
     print("Done.", len(chunks), "chunks")
@@ -110,7 +111,7 @@ def make_fewshot_db(df, db_path):
     df = df.to_dict(orient='records')
     print("Loaded Fewshot Set:", df[:1])
     # 벡터화할 텍스트 생성 및 유니코드 정규화
-    to_vectorize = ["\n\n".join(normalize_string(value) for value in example.values()) for example in df]
+    to_vectorize = ["\n\n".join(value for value in example.values()) for example in df]
     
     # 벡터화 및 FAISS DB 생성
     print("Creating FAISS DB")
@@ -134,7 +135,7 @@ def knn_db(df):
         documents.extend(pdf_documents)
     # 유니코드 정규화
     for doc in documents:
-        doc.page_content = normalize_string(doc.page_content)
+        doc.page_content = doc.page_content
     chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
     chunks = chunk_splitter.split_documents(documents)
     print("Done.", len(chunks), "chunks")

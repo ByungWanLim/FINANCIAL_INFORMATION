@@ -4,49 +4,55 @@ import pandas as pd
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 
-from faiss_module import load_and_vectorize,load_chunks_make_docdb
-from model_bw import setup_llm_pipeline
+from faiss_module_bw import  make_db, make_fewshot_db
+from model import setup_llm_pipeline
 from fewshot_module import fewshot_ex
-from save_module_bw import save
+from save_module import save
 from seed_module import seed_everything
 from utils_module import make_dict, extract_answer, format_docs
+from langchain.retrievers import EnsembleRetriever
 seed_everything(52)
 
-
-def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
-    # train에도 RAG를 쓸 때 사용
-    train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')
-    train_retriever = train_db.as_retriever(search_kwargs={'k': 1})
-    # train_dict = make_dict('train.csv')
-
-    test_db = load_chunks_make_docdb('./test_source', './test_faiss_db')
-    test_retriver = test_db.as_retriever(search_kwargs={'k': 3})
-    test_dict = make_dict('test.csv')
-
-    fewshot_db = load_and_vectorize('train.csv', './fewshot_faiss_db')
-
-    llm = setup_llm_pipeline(model_id)
+def run(train_db,test_db,fewshot_db, dataset ,llm, verbose = False):
     # reordering = LongContextReorder()
     results =[]
-    for i in tqdm(range(len(test_dict))):
+    for i in tqdm(range(len(dataset))):
+        # test_retriver = test_db.as_retriever(search_type="similarity_score_threshold",
+        #         search_kwargs={'score_threshold': 0.77,'k':2})
+        sim_retriver = test_db.as_retriever(search_kwargs={'k':3})
+        mmr_retriver = test_db.as_retriever(search_type="mmr",
+                                            search_kwargs={'k':3})
+        
+        ensemble_retriever = EnsembleRetriever(
+            retrievers=[sim_retriver, mmr_retriver], weights=[0.15, 0.85]
+            )
         # train_retriever가 있으면 context를 포함한 fewshot prompt 생성
         # 없으면 fewshot prompt만 생성
-        fewshot_str = fewshot_ex(fewshot_db, test_dict[i],train_retriever= train_retriever, fewshot_num = 3)
+        # fewshot_str = fewshot_ex(fewshot_db, dataset[i],train_db= train_db, fewshot_num = 3)
         #print(fewshot_str)
-        
-        full_template = """
-    다음 정보를 바탕으로 질문에 답하세요:
-    {context}
+        full_template = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are the financial expert who helps me with my financial information Q&As.
+You earn 10 points when you answer me and follow the rules and lose 7 points when you don't.
 
-    질문: {input}
-    
-    주어진 질문에만 답변하세요. 문장으로 답변해주세요. 답변할 때 질문의 주어를 써주세요.
-    답변:
-    """
+12,500 백만원 = 125 억원 = 12,500,000,000 원
+5,400 백만원 = 54 억원 = 5,400,000,000 원
+
+Here are some rules you should follow.
+- Please use contexts to answer the question.
+- Please your answers should be concise.
+- Please answers must be written in Korean.
+- Please answer the question in 1-3 sentences.
+
+- Use the three examples below to learn how to follow the rules and reference information in context.<|eot_id|>
+""" +"""
+<|start_header_id|>user<|end_header_id|>
+Question: {input}\n\nContext\n{context}<|eot_id|>
+<|start_header_id|>assistant<|end_header_id|>\n
+"""
         prompt = PromptTemplate.from_template(full_template)
         qa_chain = (
         {
-            "context": test_retriver | format_docs,
+            "context": ensemble_retriever | format_docs,
             "input": RunnablePassthrough(),
         }
         | prompt
@@ -54,17 +60,20 @@ def run(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         | StrOutputParser()
         )
         # print("================================================")
-        print("\nQuestion: ",test_dict[i]['Question'])
-        answer = qa_chain.invoke(test_dict[i]['Question'])
+        if verbose:
+            print("\nQuestion: ",dataset[i]['Question'])
+        answer = qa_chain.invoke(dataset[i]['Question'])
         answer = extract_answer(answer)
         results.append({
-            "Question": test_dict[i]['Question'],
+            "Question": dataset[i]['Question'],
             "Answer": answer,
-            "Source": test_dict[i]['Source']
+            "Source": dataset[i]['Source']
             })
-        print("Answer: ",results[-1]['Answer'])
+        if verbose:
+            print("Answer: ",results[-1]['Answer'])
         #print(results[-1]['Source'])
-    save(results)
+    return results
+    
     
 if __name__ == "__main__":
     # EleutherAI/polyglot-ko-1.3b
@@ -72,5 +81,26 @@ if __name__ == "__main__":
     # maywell/TinyWand-kiqu
     # yanolja/EEVE-Korean-Instruct-2.8B-v1.0
     # MLP-KTLim/llama-3-Korean-Bllossom-8B
-    # "rtzr/ko-gemma-2-9b-it"
-    run(model_id = "rtzr/ko-gemma-2-9b-it")
+    
+    # train에도 RAG를 쓸 때 사용
+    train_df = pd.read_csv('train.csv')
+    train_db = make_db(train_df, './train_faiss_db')
+
+    # train_dict = make_dict('train.csv')
+
+    test_df = pd.read_csv('test.csv')
+    test_db = make_db(test_df, './test_faiss_db')
+
+    test_dict = make_dict('test.csv')
+    
+    fewshot_db = make_fewshot_db(train_df, './fewshot_faiss_db')
+    model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    llm = setup_llm_pipeline(model_id)
+    
+    results = run(train_db= train_db,
+        test_db= test_db,
+        fewshot_db=fewshot_db, 
+        dataset= test_df.to_dict(orient='records') ,
+        llm=llm,
+        verbose=True)
+    save(results)
