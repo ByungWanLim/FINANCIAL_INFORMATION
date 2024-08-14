@@ -27,7 +27,7 @@ def setup_llm_pipeline(model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"):
         top_p = 0.6,
         repetition_penalty=1.1,
         return_full_text=False,
-        max_new_tokens=512,
+        max_new_tokens=256,
         eos_token_id = terminators,
         pad_token_id = tokenizer.eos_token_id
     )
