@@ -35,15 +35,18 @@ Here are some rules you should follow.
 - When writing your answer, you should think twice and be concise.
 - You should use less than 126 words.  
 - Use the three examples below to learn how to follow the rules and reference information in context.<|eot_id|>
-""" +f"{fewshot_str}"+"""
+""" 
+        full_template += f"{fewshot_str}"
+        full_template += """
 <|start_header_id|>user<|end_header_id|>
-Question\n{input}\n\nContext\n{context}<|eot_id|>
+Question\n{input}\n\n"""
+        context = format_docs(test_retriver.invoke(normalize_string(dataset[i]['Question'])))
+        full_template += f"""Context\n{context}<|eot_id|>
 <|start_header_id|>assistant<|end_header_id|>\n
 """
         prompt = PromptTemplate.from_template(full_template)
         qa_chain = (
         {
-            "context": test_retriver | format_docs,
             "input": RunnablePassthrough(),
         }
         | prompt
@@ -53,7 +56,7 @@ Question\n{input}\n\nContext\n{context}<|eot_id|>
         # print("================================================")
         if verbose:
             print("\nQuestion: ",dataset[i]['Question'])
-        answer = qa_chain.invoke(normalize_string(dataset[i]['Question']))
+        answer = qa_chain.invoke(dataset[i]['Question'])
         answer = extract_answer(answer)
         results.append({
             "Question": dataset[i]['Question'],
