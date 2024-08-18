@@ -12,3 +12,9 @@ bitsandbytes
 rapidocr-onnxruntime
 peft
 datasets
+langchain-unstructured 
+unstructured-client 
+unstructured 
+unstructured[pdf]
+python-magic
+langchain-unstructured[local]
