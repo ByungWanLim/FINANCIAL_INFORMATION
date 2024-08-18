@@ -2,15 +2,16 @@ import torch
 import numpy as np
 import pandas as pd
 from collections import Counter
-from faiss_module import load_and_vectorize,load_chunks_make_docdb, make_db, make_fewshot_db
-from model import setup_llm_pipeline
+from faiss_module_bw import load_and_vectorize,load_chunks_make_docdb, make_db, make_fewshot_db
+from model_bw2 import setup_llm_pipeline
 from fewshot_module import fewshot_ex
-from save_module import save
+from save_module_bw import save
 from seed_module import seed_everything
 from utils_module import make_dict, extract_answer, format_docs
 from run import run
 seed_everything(52)
 from sklearn.model_selection import KFold
+
 def calculate_f1_score(true_sentence, predicted_sentence, sum_mode=True):
 
     #공백 제거
@@ -64,8 +65,10 @@ def calculate_average_f1_score(true_sentences, predicted_sentences):
 k_folds = 3
 kf = KFold(n_splits=k_folds, shuffle=True, random_state=52)
 train_df = pd.read_csv('train.csv')
-model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-llm = setup_llm_pipeline(model_id)
+# model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+# llm = setup_llm_pipeline(model_id)
+model_path = "./saved_model"
+llm = setup_llm_pipeline(model_path)
 fold_result = []
 
 for fold, (train_index, val_index) in enumerate(kf.split(train_df)):

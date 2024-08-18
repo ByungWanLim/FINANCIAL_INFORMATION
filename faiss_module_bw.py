@@ -29,7 +29,7 @@ def normalize_string(s):
 
 def get_embedding():
     embeddings = HuggingFaceEmbeddings(
-        model_name='intfloat/multilingual-e5-large',
+        model_name='intfloat/multilingual-e5-small',
         model_kwargs={'device': 'cuda'},
         encode_kwargs={'normalize_embeddings': True}
         )
@@ -86,7 +86,7 @@ def make_db(df, db_path):
     # 유니코드 정규화
     for doc in documents:
         doc.page_content = normalize_string(doc.page_content)
-    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
+    chunk_splitter = RecursiveCharacterTextSplitter(chunk_size=256, chunk_overlap=64)
     chunks = chunk_splitter.split_documents(documents)
     print("Done.", len(chunks), "chunks")
     
