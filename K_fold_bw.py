@@ -1,17 +1,16 @@
-import torch
 import numpy as np
 import pandas as pd
 from collections import Counter
-from faiss_module_bw import load_and_vectorize,load_chunks_make_docdb, make_db, make_fewshot_db
+import torch
+from faiss_module_bw import make_db, make_fewshot_db
 from model_bw2 import setup_llm_pipeline
-from fewshot_module import fewshot_ex
+
 from save_module_bw import save
 from seed_module import seed_everything
 from utils_module import make_dict, extract_answer, format_docs
-from run import run
+
 seed_everything(52)
 from sklearn.model_selection import KFold
-
 def calculate_f1_score(true_sentence, predicted_sentence, sum_mode=True):
 
     #공백 제거
@@ -71,25 +70,25 @@ model_path = "./saved_model"
 llm = setup_llm_pipeline(model_path)
 fold_result = []
 
+from run_bw2 import run
+
 for fold, (train_index, val_index) in enumerate(kf.split(train_df)):
     fold_results = []
     print(f"\nFold {fold + 1}/{k_folds}")
     # 수정된 부분: .iloc[] 사용
     train_set = train_df.iloc[train_index]
     val_set = train_df.iloc[val_index]
-    train_db = load_chunks_make_docdb('./train_source', './train_faiss_db')
     
-    fewshot_db = make_fewshot_db(train_set)
-    train_retriever = train_db.as_retriever(search_kwargs={'k': 1})
-    val_retriever = train_db.as_retriever(search_kwargs={'k': 3})
-    pred = run(
-        train_retriever,
-        val_retriever,
-        fewshot_db, 
-        val_set.to_dict(orient='records'),
-        llm,
-        varbose=False)
+    train_db = make_db(train_set,'./train_faiss_db')
+
+    fewshot_db = make_fewshot_db(train_set,None)
     
+    pred = results = run(train_db= train_db,
+        test_db= train_db,
+        fewshot_db=fewshot_db, 
+        dataset= val_set.to_dict(orient='records') ,
+        llm=llm,
+        verbose=False)
     result = pd.DataFrame()
     result['pred'] = [result['Answer'] for result in pred]
     val_set.index = range(len(val_set))
@@ -98,7 +97,7 @@ for fold, (train_index, val_index) in enumerate(kf.split(train_df)):
     result = calculate_average_f1_score(result['gt'], result['pred'])
     print(result)
     fold_result.append(result)
-    
+    break
     fewshot_db = None
     train_db = None
     val_db = None
