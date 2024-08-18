@@ -4,7 +4,7 @@ import pandas as pd
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 
-from faiss_module_bw import  make_db, make_fewshot_db
+from faiss_module_bw_big import  make_db, make_fewshot_db
 from model_bw2 import setup_llm_pipeline
 from fewshot_module import fewshot_ex
 from save_module_bw import save
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     # model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     # llm = setup_llm_pipeline(model_id)
     ###
-    model_path = "./saved_model"
+    model_path = "./saved_model2"
     llm = setup_llm_pipeline(model_path)
     ###
     # 파인튜닝된 모델 로드

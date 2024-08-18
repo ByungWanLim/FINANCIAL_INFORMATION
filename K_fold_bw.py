@@ -66,7 +66,7 @@ kf = KFold(n_splits=k_folds, shuffle=True, random_state=52)
 train_df = pd.read_csv('train.csv')
 # model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 # llm = setup_llm_pipeline(model_id)
-model_path = "./saved_model"
+model_path = "./saved_model2"
 llm = setup_llm_pipeline(model_path)
 fold_result = []
 
