@@ -1,6 +1,7 @@
 langchain
 langchain_community
 langchain_huggingface
+huggingface-hub
 tqdm
 pandas
 transformers
@@ -18,3 +19,5 @@ unstructured
 unstructured[pdf]
 python-magic
 langchain-unstructured[local]
+fitz
+pytesseract
