@@ -21,3 +21,5 @@ python-magic
 langchain-unstructured[local]
 fitz
 pytesseract
+pymupdf4llm
+llama_index
