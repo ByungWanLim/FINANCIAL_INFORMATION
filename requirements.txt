@@ -19,7 +19,8 @@ unstructured
 unstructured[pdf]
 python-magic
 langchain-unstructured[local]
-fitz
+pymupdf
 pytesseract
 pymupdf4llm
 llama_index
+langchain_teddynote
